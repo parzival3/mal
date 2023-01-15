@@ -45,14 +45,14 @@ const STANDALONE_TOKENS_MAPPING: [(&str, Tokens); 7] = [
     ("}", Tokens::RightBraket),
 ];
 
-trait ReaderTrait {
+pub trait ReaderTrait {
     fn new(tokens: Vec<Tokens>) -> Self;
     fn next(&mut self) -> Option<&Tokens>;
     fn peek(&self) -> Option<&Tokens>;
 }
 
 #[derive(Debug, Clone, PartialEq)]
-struct Reader<T>
+pub struct Reader<T>
 where
     T: ReaderTrait,
 {
@@ -148,6 +148,7 @@ impl<T: ReaderTrait> Reader<T> {
         let mut content = Vec::new();
         while let Some(token) = self.peek() {
             if token == Tokens::RightParen {
+                let _ = self.next();
                 return Some(Type::List(List { child: content }));
             }
             content.push(self.read_from()?);
@@ -228,6 +229,23 @@ pub mod test {
             ast,
             Type::List(List {
                 child: vec![Type::Atom(Atom::Symbol(String::from("+")))]
+            })
+        );
+    }
+
+    #[test]
+    fn testing_read_from_nested_lists() {
+        let mut reader = Reader::<InternalReader>::tokenize("(+ (+) 1)")
+            .expect("We should be able to create a Reader");
+        let ast = reader
+            .read_from()
+            .expect("We should be able to parse a single atom");
+        assert_eq!(
+            ast,
+            Type::List(List {
+                child: vec![Type::Atom(Atom::Symbol(String::from("+"))),
+                            Type::List(List {child: vec![Type::Atom(Atom::Symbol(String::from("+")))] }),
+                            Type::Atom(Atom::Integer(1))]
             })
         );
     }

@@ -45,4 +45,13 @@ mod test {
         assert_eq!(ast_to_string(ast), "(+ 1 2)".to_string());
     }
 
+    #[test]
+    fn testing_printing_nested_lists() {
+        let ast = Type::List(List {
+                child: vec![Type::Atom(Atom::Symbol(String::from("+"))),
+                            Type::List(List {child: vec![Type::Atom(Atom::Symbol(String::from("+")))] })]
+            });
+
+        assert_eq!(ast_to_string(ast), "(+ (+))".to_string());
+    }
 }
