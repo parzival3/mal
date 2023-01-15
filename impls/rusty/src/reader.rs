@@ -1,5 +1,5 @@
-use regex::Regex;
 use crate::types::*;
+use regex::Regex;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenizerError {
@@ -130,7 +130,7 @@ impl<T: ReaderTrait> Reader<T> {
     }
 
     pub fn read_from(&mut self) -> Option<Type> {
-        match self.peek()? {
+        match self.next()? {
             Tokens::TildeAt => todo!(),
             Tokens::LeftParen => self.read_list(),
             Tokens::RightParen => todo!(),
@@ -138,19 +138,49 @@ impl<T: ReaderTrait> Reader<T> {
             Tokens::RightSquareBraket => todo!(),
             Tokens::LeftBraket => todo!(),
             Tokens::RightBraket => todo!(),
-            Tokens::String(_) => todo!(),
+            Tokens::String(content) => self.read_atom(content),
             Tokens::Comment(_) => todo!(),
-            Tokens::Atom(_) => todo!(),
+            Tokens::Atom(content) => self.read_atom(content),
+        }
+    }
+
+    fn read_list(&mut self) -> Option<Type> {
+        let mut content = Vec::new();
+        while let Some(token) = self.peek() {
+            if token == Tokens::RightParen {
+                return Some(Type::List(List { child: content }));
+            }
+            content.push(self.read_from()?);
+        }
+        None
+    }
+
+    fn read_atom(&mut self, content: String) -> Option<Type> {
+        if content.starts_with('\"') {
+            return Some(Type::Atom(Atom::String(content.replace('\"', ""))));
         }
 
-    }
+        if content == "nil" {
+            return Some(Type::Atom(Atom::Nil));
+        }
 
-    pub fn read_list(&mut self) -> Option<Type> {
-        Some(Type::List(List{}))
-    }
+        if let Ok(value) = content.parse::<i64>() {
+            return Some(Type::Atom(Atom::Integer(value)));
+        }
 
-    pub fn read_atom(&mut self) -> Option<Type> {
-        Some(Type::List(List{}))
+        if content == "true" {
+            return Some(Type::Atom(Atom::True));
+        }
+
+        if content == "false" {
+            return Some(Type::Atom(Atom::False));
+        }
+
+        if content.starts_with(':') {
+            return Some(Type::Atom(Atom::Keyword(content)));
+        }
+
+        return Some(Type::Atom(Atom::Symbol(content)));
     }
 }
 
@@ -185,5 +215,100 @@ pub mod test {
                 "TODO: Fix error reporting"
             )))
         );
+    }
+
+    #[test]
+    fn testing_read_from_symbol() {
+        let mut reader = Reader::<InternalReader>::tokenize("(+)")
+            .expect("We should be able to create a Reader");
+        let ast = reader
+            .read_from()
+            .expect("We should be able to parse a single atom");
+        assert_eq!(
+            ast,
+            Type::List(List {
+                child: vec![Type::Atom(Atom::Symbol(String::from("+")))]
+            })
+        );
+    }
+
+    #[test]
+    fn testing_read_from_numeric_expression() {
+        let mut reader = Reader::<InternalReader>::tokenize("(+ 1 2)")
+            .expect("We should be able to create a Reader");
+        let ast = reader
+            .read_from()
+            .expect("We should be able to parse a single atom");
+        assert_eq!(
+            ast,
+            Type::List(List {
+                child: vec![
+                    Type::Atom(Atom::Symbol(String::from("+"))),
+                    Type::Atom(Atom::Integer(1)),
+                    Type::Atom(Atom::Integer(2))
+                ]
+            })
+        );
+    }
+
+    #[test]
+    fn testing_read_from_keyword() {
+        let mut reader = Reader::<InternalReader>::tokenize("(+ :test)")
+            .expect("We should be able to create a Reader");
+        let ast = reader
+            .read_from()
+            .expect("We should be able to parse a single atom");
+        assert_eq!(
+            ast,
+            Type::List(List {
+                child: vec![
+                    Type::Atom(Atom::Symbol(String::from("+"))),
+                    Type::Atom(Atom::Keyword(String::from(":test")))
+                ]
+            })
+        );
+    }
+
+    #[test]
+    fn testing_read_from_nil_true_false() {
+        let mut reader = Reader::<InternalReader>::tokenize("(+ nil true false)")
+            .expect("We should be able to create a Reader");
+        let ast = reader
+            .read_from()
+            .expect("We should be able to parse a single atom");
+        assert_eq!(
+            ast,
+            Type::List(List {
+                child: vec![
+                    Type::Atom(Atom::Symbol(String::from("+"))),
+                    Type::Atom(Atom::Nil),
+                    Type::Atom(Atom::True),
+                    Type::Atom(Atom::False)
+                ]
+            })
+        );
+    }
+
+    #[test]
+    fn testing_read_from_string() {
+        let mut reader = Reader::<InternalReader>::tokenize("(\"Hello World\")")
+            .expect("We should be able to create a Reader");
+        let ast = reader
+            .read_from()
+            .expect("We should be able to parse a single atom");
+        assert_eq!(
+            ast,
+            Type::List(List {
+                child: vec![
+                    Type::Atom(Atom::String(String::from("Hello World")))]
+            })
+        );
+    }
+
+    #[test]
+    fn testing_read_from_unbalanced_list() {
+        let mut reader = Reader::<InternalReader>::tokenize("(\"Hello World\"").expect("We should be able to create a Reader");
+        let ast = reader.read_from();
+        assert!(ast.is_none());
     }
 }
