@@ -2,20 +2,20 @@ use crate::printer::pr_str;
 use crate::reader::*;
 use crate::types::*;
 
-pub fn read(input_string: &str) -> Option<Type> {
+pub fn read(input_string: &str) -> TokenizerResult<Type> {
     let mut string = input_string.to_owned();
     string.pop();
-    let mut reader = Reader::<InternalReader>::tokenize(input_string).ok()?;
+    let mut reader = Reader::<InternalReader>::tokenize(input_string)?;
     reader.read_from()
 }
 
-pub fn eval(ast: Option<Type>) -> Option<Type> {
+pub fn eval(ast: TokenizerResult<Type>) -> TokenizerResult<Type> {
     ast
 }
 
-pub fn print(ast: Option<Type>) {
+pub fn print(ast: TokenizerResult<Type>) {
     match ast {
-        Some(ast) => pr_str(ast),
+        Ok(ast) => pr_str(ast),
         _ => todo!(),
     }
 }
