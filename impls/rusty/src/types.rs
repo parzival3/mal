@@ -6,7 +6,8 @@ pub enum Atom {
     True,
     False,
     String(String),
-    Keyword(String)
+    Keyword(String),
+    SpliceUnquote,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -18,4 +19,5 @@ pub struct List {
 pub enum Type {
     Atom(Atom),
     List(List),
+    Array(List),
 }

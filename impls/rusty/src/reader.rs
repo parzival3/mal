@@ -9,6 +9,8 @@ pub enum TokenizerError {
     NoMoreTokens,
     ReadAtom(usize, String),
     ReadList(usize, String),
+    UnbalancedArray,
+    UnbalancedList,
 }
 
 impl std::error::Error for TokenizerError {}
@@ -31,6 +33,8 @@ impl core::fmt::Display for TokenizerError {
                 "Tokenizer Error, List Error at index {}, {}",
                 index, message
             ),
+            TokenizerError::UnbalancedList => write!(f, "(EOF|end of input|unbalanced)"),
+            TokenizerError::UnbalancedArray => write!(f, "(EOF|end of input|unbalanced)"),
         }
     }
 }
@@ -103,6 +107,9 @@ impl ReaderTrait for InternalReader {
 }
 
 impl<T: ReaderTrait> Reader<T> {
+    // Tokenizer with regex is fine for now but we should really parse the
+    // input by hand in order to save the position of the token so the error report
+    // can be more useful
     pub fn tokenize(input: &str) -> TokenizerResult<Reader<T>> {
         let regex = Regex::new(concat!(
             "[\\s,]*(~@|[\\[\\]{}()'",
@@ -159,10 +166,10 @@ impl<T: ReaderTrait> Reader<T> {
 
     pub fn read_from(&mut self) -> TokenizerResult<Type> {
         match self.next()? {
-            Tokens::TildeAt => todo!(),
+            Tokens::TildeAt => self.read_at(),
             Tokens::LeftParen => self.read_list(),
             Tokens::RightParen => todo!(),
-            Tokens::LeftSquareBraket => todo!(),
+            Tokens::LeftSquareBraket => self.read_square(),
             Tokens::RightSquareBraket => todo!(),
             Tokens::LeftBraket => todo!(),
             Tokens::RightBraket => todo!(),
@@ -170,6 +177,26 @@ impl<T: ReaderTrait> Reader<T> {
             Tokens::Comment(_) => todo!(),
             Tokens::Atom(content) => self.read_atom(content),
         }
+    }
+
+    fn read_at(&mut self) -> TokenizerResult<Type> {
+        let head = Type::Atom(Atom::SpliceUnquote);
+        match self.read_from() {
+            Ok(tail) => Ok(Type::List(List { child : vec![head, tail] })),
+            error => error
+        }
+    }
+
+    fn read_square(&mut self) -> TokenizerResult<Type> {
+        let mut content = Vec::new();
+        while let Ok(token) = self.peek() {
+            if token == Tokens::RightSquareBraket {
+                let _ = self.next();
+                return Ok(Type::Array(List { child: content }));
+            }
+            content.push(self.read_from()?);
+        }
+        Err(TokenizerError::UnbalancedArray)
     }
 
     fn read_list(&mut self) -> TokenizerResult<Type> {
@@ -181,7 +208,7 @@ impl<T: ReaderTrait> Reader<T> {
             }
             content.push(self.read_from()?);
         }
-        Err(TokenizerError::NoMoreTokens)
+        Err(TokenizerError::UnbalancedList)
     }
 
     fn read_atom(&mut self, content: String) -> TokenizerResult<Type> {

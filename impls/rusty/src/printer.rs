@@ -9,6 +9,20 @@ fn ast_to_string(ast: Type) -> String {
     match ast {
         Type::Atom(atom) => pr_atom(atom),
         Type::List(list) => pr_list(list),
+        Type::Array(list) => pr_array(list),
+    }
+}
+
+
+fn pr_array(list: List) -> String {
+    if list.child.is_empty() {
+        String::from("[]")
+    } else {
+        let mut output = String::from("[");
+        list.child
+            .iter()
+            .for_each(|atom| output += &(ast_to_string(atom.clone()) + " "));
+        String::from(&output[0..output.len() - 1]) + "]" // TODO this is not very elegant... but it does the job
     }
 }
 
@@ -33,6 +47,7 @@ fn pr_atom(atom: Atom) -> String {
         Atom::False => "false".to_string(),
         Atom::String(value) => String::from("\"") + &value + "\"",
         Atom::Keyword(value) => value,
+        Atom::SpliceUnquote => "splice-unquote".to_string()
     }
 }
 
