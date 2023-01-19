@@ -16,7 +16,7 @@ pub fn eval(ast: TokenizerResult<Type>) -> TokenizerResult<Type> {
 pub fn print(ast: TokenizerResult<Type>) {
     match ast {
         Ok(ast) => pr_str(ast),
-        _ => todo!(),
+        _ => println!("(EOF|end of input|unbalanced)"), // TODO change this
     }
 }
 

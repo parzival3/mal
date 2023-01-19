@@ -9,6 +9,7 @@ mal: stepA_mal
 	cp $< $@
 
 %: src/bin/%.rs
+	rm -f $*
 	cargo build --release --bin $*
 	cp target/release/$* $@
 
