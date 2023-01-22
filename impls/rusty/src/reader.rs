@@ -185,15 +185,32 @@ impl<T: ReaderTrait> Reader<T> {
     fn read_string(&mut self, content: String) -> TokenizerResult<Type> {
         // Black magic for parsing the content of the string, not very proud of it, but
         // it works.
-        let escaped = content.chars().fold((false, false), |escaped, ch| {
-            if escaped.0 {
-                (false, if ch == '\"' { true } else { false })
+        // The escaped "accumulator" is a pair where the first boolean represent if we
+        // have a properly escaped string and the second one represent if the last \" was
+        // an escaped one. The fold basically checks if we have escaped the previous character
+        // and if the current character is a \" then we
+        #[derive(PartialEq)]
+        enum Escaping {
+            Missing,
+            NotMissing
+        }
+
+        #[derive(PartialEq)]
+        enum LastEscape {
+            IsQuote,
+            IsntQuote
+
+        }
+
+        let escaped = content.chars().fold((Escaping::NotMissing, LastEscape::IsQuote), |escaped, ch| {
+            if escaped.0 == Escaping::Missing {
+                (Escaping::NotMissing, if ch == '\"' { LastEscape::IsQuote } else { LastEscape::IsntQuote })
             } else {
-                if ch == '\\' { (true, false) } else { (false, false) }
+                if ch == '\\' { (Escaping::Missing, LastEscape::IsntQuote) } else { (Escaping::NotMissing, LastEscape::IsntQuote) }
             }
         });
 
-        if escaped.0 || !content.ends_with("\"") || escaped.1 || content.len() < 2 {
+        if escaped.0 == Escaping::Missing || escaped.1 == LastEscape::IsQuote || !content.ends_with("\"") || content.len() < 2 {
             Err(TokenizerError::Quote(format!(
                 "unterminated quote starting at {}",
                 content
