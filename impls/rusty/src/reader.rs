@@ -12,6 +12,7 @@ pub enum TokenizerError {
     UnbalancedArray,
     UnbalancedList,
     UnbalancedMap,
+    RandomEscape,
 }
 
 impl std::error::Error for TokenizerError {}
@@ -37,6 +38,7 @@ impl core::fmt::Display for TokenizerError {
             TokenizerError::UnbalancedList => write!(f, "EOF while parsing List"),
             TokenizerError::UnbalancedArray => write!(f, "EOF while parsing Array"),
             TokenizerError::UnbalancedMap => write!(f, "EOF while parsing Map"),
+            TokenizerError::RandomEscape => write!(f, "Found a random escape not iside a String"),
         }
     }
 }
@@ -53,8 +55,11 @@ pub enum Tokens {
     LeftBraket,
     RightBraket,
     String(String),
+    LeftString(String),
+    RightString(String),
     Comment(String),
     Atom(String),
+    Escape,
 } // Captures a sequence of zero or more non special characters (e.g. symbols, numbers, "true", "false")
 
 const STANDALONE_TOKENS_MAPPING: [(&str, Tokens); 7] = [
@@ -113,35 +118,26 @@ impl<T: ReaderTrait> Reader<T> {
     // input by hand in order to save the position of the token so the error report
     // can be more useful
     pub fn tokenize(input: &str) -> TokenizerResult<Reader<T>> {
-        let regex = Regex::new(concat!(
-            "[\\s,]*(~@|[\\[\\]{}()'",
-            "`~^@]|\"(?:\\.|[^\\\\\"])",
-            "*\"?|;.*|[^\\s\\[\\]{}('\"`,;)]*)"
-        ))
+        let regex = Regex::new(concat!(r###"[\s,]*(~@|[\[\]{}()'`~^@]|"(?:\\.|[^\\"])*"?|;.*|[^\s\[\]{}('"`,;)]+)"###))
         .unwrap();
 
         let mut tokens = Vec::new();
-        let mut in_string = false;
-        let mut current_string = String::from("");
 
         for cap in regex.captures_iter(input) {
             match STANDALONE_TOKENS_MAPPING.iter().find(|&x| x.0 == &cap[1]) {
                 Some(token_mapping) => tokens.push(token_mapping.1.clone()),
                 None => {
-                    if in_string {
-                        current_string += &cap[1].to_string();
-                    } else if cap[1].starts_with(';') {
+                    if cap[1].starts_with(';') {
                         let token = Tokens::Comment(cap[1].to_string());
                         tokens.push(token);
+                    } else if cap[1].starts_with('\\') {
+                        tokens.push(Tokens::Escape);
                     } else if cap[1].starts_with('\"') && cap[1].ends_with('\"') {
                         tokens.push(Tokens::String(cap[1].to_string()));
                     } else if cap[1].starts_with('\"') {
-                        current_string = cap[1].to_string();
-                        in_string = true;
-                    } else if cap[1].ends_with('\"') && in_string {
-                        tokens.push(Tokens::String(current_string.clone() + &cap[1].to_string()));
-                        current_string = String::from("");
-                        in_string = false;
+                        tokens.push(Tokens::LeftString(cap[1].to_string()));
+                    } else if cap[1].ends_with('\"') {
+                        tokens.push(Tokens::RightString(cap[1].to_string()));
                     } else {
                         let token = Tokens::Atom(cap[1].to_string());
                         tokens.push(token);
@@ -191,10 +187,39 @@ impl<T: ReaderTrait> Reader<T> {
                 TokenizerError::UnbalancedMap,
             ),
             Tokens::RightBraket => Err(TokenizerError::UnbalancedMap),
-            Tokens::String(content) => self.read_atom(content),
+            Tokens::String(content) => Ok(Type::Atom(Atom::String(content))),
+            Tokens::LeftString(content) => self.read_string(content),
+            Tokens::RightString(content) => Err(TokenizerError::Quote(format!(
+                "unbalanced quote at {}, EOF",
+                content
+            ))),
             Tokens::Comment(_) => self.read_from(), // skip the current comment
             Tokens::Atom(content) => self.read_atom(content),
+            Tokens::Escape => Err(TokenizerError::RandomEscape),
         }
+    }
+
+    fn read_string(&mut self, mut content: String) -> TokenizerResult<Type> {
+        while let Ok(token) = self.next() {
+            match token {
+                Tokens::Escape => content += "\\",
+                Tokens::Atom(value) => content += &value,
+                Tokens::RightString(value) => {
+                    return Ok(Type::Atom(Atom::String(content + &value)))
+                }
+                Tokens::String(value) => return Ok(Type::Atom(Atom::String(content + &value))),
+                token => {
+                    return Err(TokenizerError::Quote(format!(
+                        "err unterminated quote starting at {}, val {:?}",
+                        content, token
+                    )))
+                }
+            }
+        }
+        Err(TokenizerError::Quote(format!(
+            "unterminated quote starting at {}",
+            content
+        )))
     }
 
     fn read_sequence_until<F>(
@@ -227,14 +252,6 @@ impl<T: ReaderTrait> Reader<T> {
     }
 
     fn read_atom(&mut self, content: String) -> TokenizerResult<Type> {
-        if content.starts_with('\"') {
-            return Ok(Type::Atom(Atom::String(content)));
-            // if content.ends_with("\"") {
-            // } else {
-            //     return Err(TokenizerError::Quote(format!("Missing enclosing qoute \" starting at {}", content)));
-            // }
-        }
-
         if content == "nil" {
             return Ok(Type::Atom(Atom::Nil));
         }
@@ -313,17 +330,22 @@ pub mod test {
 
     #[test]
     fn testing_escaped_qoute() {
-        let mut reader = Reader::<InternalReader>::tokenize("\"abc \\\" dfg\"")
+        let mut reader = Reader::<InternalReader>::tokenize(r###""\""###)
+            .expect("We should be able to create a Reader");
+        let ast = reader
+            .read_from();
+        println!("AST is {:?}", ast);  // TODO remove
+        assert!(ast.is_err());
+    }
+
+    #[test]
+    fn testing_string_with_qoute() {
+        let mut reader = Reader::<InternalReader>::tokenize(r###""abc \" dfg""###)
             .expect("We should be able to create a Reader");
         let ast = reader
             .read_from()
-            .expect("We should be able to parse the input");
-        assert_eq!(
-            ast,
-            Type::List(List {
-                child: vec![Type::Atom(Atom::Symbol(String::from("+")))]
-            })
-        );
+            .expect("We should be able to parse a single atom");
+        assert_eq!(ast, Type::Atom(Atom::String("\"abc \\\" dfg\"".to_string())));
     }
 
     #[test]
