@@ -126,6 +126,11 @@ impl<T: ReaderTrait> Reader<T> {
                         let token = Tokens::Comment(cap[1].to_string());
                         tokens.push(token);
                     }  else if cap[1].starts_with('\"') {
+                        if !cap[1].ends_with('\"') || cap[1].len() < 2 {
+                        return Err(TokenizerError::Quote(format!(
+                            "unterminated quote starting at {}",
+                            &cap[1])));
+                        }
                         tokens.push(Tokens::String(cap[1].to_string()));
                     } else {
                         let token = Tokens::Atom(cap[1].to_string());
@@ -176,19 +181,18 @@ impl<T: ReaderTrait> Reader<T> {
                 TokenizerError::UnbalancedMap,
             ),
             Tokens::RightBraket => Err(TokenizerError::UnbalancedMap),
-            Tokens::String(content) => self.read_string(content),
+            Tokens::String(content) => self.validate_string(content),
             Tokens::Comment(_) => self.read_from(), // skip the current comment
             Tokens::Atom(content) => self.read_atom(content),
         }
     }
 
-    fn read_string(&mut self, content: String) -> TokenizerResult<Type> {
+    fn validate_string(&mut self, content: String) -> TokenizerResult<Type> {
         // Black magic for parsing the content of the string, not very proud of it, but
         // it works.
-        // The escaped "accumulator" is a pair where the first boolean represent if we
-        // have a properly escaped string and the second one represent if the last \" was
-        // an escaped one. The fold basically checks if we have escaped the previous character
-        // and if the current character is a \" then we
+        // The escaped "accumulator" is a pair where the first enum represent if we
+        // have a properly escaped string and the second one represent if the last double quote (") was
+        // an escaped one.
         #[derive(PartialEq)]
         enum Escaping {
             Missing,
@@ -210,7 +214,7 @@ impl<T: ReaderTrait> Reader<T> {
             }
         });
 
-        if escaped.0 == Escaping::Missing || escaped.1 == LastEscape::IsQuote || !content.ends_with("\"") || content.len() < 2 {
+        if escaped.0 == Escaping::Missing || escaped.1 == LastEscape::IsQuote {
             Err(TokenizerError::Quote(format!(
                 "unterminated quote starting at {}",
                 content
