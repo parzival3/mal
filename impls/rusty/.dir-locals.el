@@ -7,5 +7,5 @@
 ;;                                                   :checkOnSave (:command "clippy"))))))))
 
 ((rust-mode . ((eglot-workspace-configuration . (:rust-analyzer
-                                                 (:linkedProjects ["/Users/enrico/Git/mal/impls/rusty/Cargo.toml"])
+                                                 (:linkedProjects ["/home/enrico/Git/mal/impls/rusty/Cargo.toml"])
                                                   :checkOnSave (:command "clippy"))))))

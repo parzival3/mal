@@ -11,6 +11,7 @@ pub enum Atom {
     Unquote,
     Deref,
     Quote,
+    QuasiQuote,
     WithMeta
 }
 

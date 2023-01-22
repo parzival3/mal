@@ -121,23 +121,27 @@ impl<T: ReaderTrait> Reader<T> {
         .unwrap();
 
         let mut tokens = Vec::new();
+        let mut in_string = false;
+        let mut current_string = String::from("");
 
         for cap in regex.captures_iter(input) {
             match STANDALONE_TOKENS_MAPPING.iter().find(|&x| x.0 == &cap[1]) {
                 Some(token_mapping) => tokens.push(token_mapping.1.clone()),
                 None => {
-                    if cap[1].starts_with(';') {
+                    if in_string {
+                        current_string += &cap[1].to_string();
+                    } else if cap[1].starts_with(';') {
                         let token = Tokens::Comment(cap[1].to_string());
                         tokens.push(token);
+                    } else if cap[1].starts_with('\"') && cap[1].ends_with('\"') {
+                        tokens.push(Tokens::String(cap[1].to_string()));
                     } else if cap[1].starts_with('\"') {
-                        if !cap[1].ends_with('\"') {
-                            return Err(TokenizerError::Quote(format!(
-                                "Missing enclosing qoute \" starting at {}",
-                                cap[1].to_string()
-                            )));
-                        }
-                        let token = Tokens::String(cap[1].to_string());
-                        tokens.push(token);
+                        current_string = cap[1].to_string();
+                        in_string = true;
+                    } else if cap[1].ends_with('\"') && in_string {
+                        tokens.push(Tokens::String(current_string.clone() + &cap[1].to_string()));
+                        current_string = String::from("");
+                        in_string = false;
                     } else {
                         let token = Tokens::Atom(cap[1].to_string());
                         tokens.push(token);
@@ -168,12 +172,24 @@ impl<T: ReaderTrait> Reader<T> {
 
     pub fn read_from(&mut self) -> TokenizerResult<Type> {
         match self.next()? {
-            Tokens::TildeAt => self.read_at(),
-            Tokens::LeftParen => self.read_list(),
+            Tokens::TildeAt => self.read_quote(Type::Atom(Atom::SpliceUnquote)),
+            Tokens::LeftParen => self.read_sequence_until(
+                Tokens::RightParen,
+                |child| Type::List(List { child }),
+                TokenizerError::UnbalancedList,
+            ),
             Tokens::RightParen => Err(TokenizerError::UnbalancedList),
-            Tokens::LeftSquareBraket => self.read_square(),
+            Tokens::LeftSquareBraket => self.read_sequence_until(
+                Tokens::RightSquareBraket,
+                |child| Type::Array(List { child }),
+                TokenizerError::UnbalancedArray,
+            ),
             Tokens::RightSquareBraket => Err(TokenizerError::UnbalancedArray),
-            Tokens::LeftBraket => self.read_curly(),
+            Tokens::LeftBraket => self.read_sequence_until(
+                Tokens::RightBraket,
+                |child| Type::Map(List { child }),
+                TokenizerError::UnbalancedMap,
+            ),
             Tokens::RightBraket => Err(TokenizerError::UnbalancedMap),
             Tokens::String(content) => self.read_atom(content),
             Tokens::Comment(_) => self.read_from(), // skip the current comment
@@ -181,53 +197,42 @@ impl<T: ReaderTrait> Reader<T> {
         }
     }
 
-    fn read_at(&mut self) -> TokenizerResult<Type> {
-        let head = Type::Atom(Atom::SpliceUnquote);
+    fn read_sequence_until<F>(
+        &mut self,
+        stop_token: Tokens,
+        create_token: F,
+        error_condition: TokenizerError,
+    ) -> TokenizerResult<Type>
+    where
+        F: Fn(Vec<Type>) -> Type,
+    {
+        let mut content = Vec::new();
+        while let Ok(token) = self.peek() {
+            if token == stop_token {
+                let _ = self.next();
+                return Ok(create_token(content));
+            }
+            content.push(self.read_from()?);
+        }
+        Err(error_condition)
+    }
+
+    fn read_quote(&mut self, head: Type) -> TokenizerResult<Type> {
         match self.read_from() {
-            Ok(tail) => Ok(Type::List(List { child : vec![head, tail] })),
-            error => error
+            Ok(tail) => Ok(Type::List(List {
+                child: vec![head, tail],
+            })),
+            error => error,
         }
-    }
-
-    fn read_curly(&mut self) -> TokenizerResult<Type> {
-        let mut content = Vec::new();
-        while let Ok(token) = self.peek() {
-            if token == Tokens::RightBraket {
-                let _ = self.next();
-                return Ok(Type::Map(List { child: content }));
-            }
-            content.push(self.read_from()?);
-        }
-        Err(TokenizerError::UnbalancedMap)
-    }
-
-    fn read_square(&mut self) -> TokenizerResult<Type> {
-        let mut content = Vec::new();
-        while let Ok(token) = self.peek() {
-            if token == Tokens::RightSquareBraket {
-                let _ = self.next();
-                return Ok(Type::Array(List { child: content }));
-            }
-            content.push(self.read_from()?);
-        }
-        Err(TokenizerError::UnbalancedArray)
-    }
-
-    fn read_list(&mut self) -> TokenizerResult<Type> {
-        let mut content = Vec::new();
-        while let Ok(token) = self.peek() {
-            if token == Tokens::RightParen {
-                let _ = self.next();
-                return Ok(Type::List(List { child: content }));
-            }
-            content.push(self.read_from()?);
-        }
-        Err(TokenizerError::UnbalancedList)
     }
 
     fn read_atom(&mut self, content: String) -> TokenizerResult<Type> {
         if content.starts_with('\"') {
-            return Ok(Type::Atom(Atom::String(content.replace('\"', ""))));
+            return Ok(Type::Atom(Atom::String(content)));
+            // if content.ends_with("\"") {
+            // } else {
+            //     return Err(TokenizerError::Quote(format!("Missing enclosing qoute \" starting at {}", content)));
+            // }
         }
 
         if content == "nil" {
@@ -250,20 +255,24 @@ impl<T: ReaderTrait> Reader<T> {
             return Ok(Type::Atom(Atom::Keyword(content)));
         }
 
+        if content.starts_with('`') {
+            return self.read_quote(Type::Atom(Atom::QuasiQuote));
+        }
+
         if content.starts_with('\'') {
-            return Ok(Type::Atom(Atom::Quote));
+            return self.read_quote(Type::Atom(Atom::Quote));
         }
 
         if content.starts_with('@') {
-            return Ok(Type::Atom(Atom::Deref));
+            return self.read_quote(Type::Atom(Atom::Deref));
         }
 
         if content.starts_with('^') {
-            return Ok(Type::Atom(Atom::WithMeta));
+            return self.read_quote(Type::Atom(Atom::WithMeta));
         }
 
         if content.starts_with('~') {
-            return Ok(Type::Atom(Atom::Unquote));
+            return self.read_quote(Type::Atom(Atom::Unquote));
         }
 
         return Ok(Type::Atom(Atom::Symbol(content)));
@@ -294,6 +303,21 @@ pub mod test {
         let ast = reader
             .read_from()
             .expect("We should be able to parse a single atom");
+        assert_eq!(
+            ast,
+            Type::List(List {
+                child: vec![Type::Atom(Atom::Symbol(String::from("+")))]
+            })
+        );
+    }
+
+    #[test]
+    fn testing_escaped_qoute() {
+        let mut reader = Reader::<InternalReader>::tokenize("\"abc \\\" dfg\"")
+            .expect("We should be able to create a Reader");
+        let ast = reader
+            .read_from()
+            .expect("We should be able to parse the input");
         assert_eq!(
             ast,
             Type::List(List {
@@ -390,7 +414,7 @@ pub mod test {
         assert_eq!(
             ast,
             Type::List(List {
-                child: vec![Type::Atom(Atom::String(String::from("Hello World")))]
+                child: vec![Type::Atom(Atom::String(String::from("\"Hello World\"")))]
             })
         );
     }

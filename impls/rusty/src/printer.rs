@@ -8,48 +8,15 @@ pub fn pr_str(ast: Type) {
 fn ast_to_string(ast: Type) -> String {
     match ast {
         Type::Atom(atom) => pr_atom(atom),
-        Type::List(list) => pr_list(list),
-        Type::Array(list) => pr_array(list),
-        Type::Map(list) => pr_map(list),
+        Type::List(list) => pr_sequence(list, "(", ")"),
+        Type::Array(list) => pr_sequence(list, "[", "]"),
+        Type::Map(list) => pr_sequence(list, "{", "}"),
     }
 }
 
-fn pr_map(list: List) -> String {
-    if list.child.is_empty() {
-        String::from("{}")
-    } else {
-        let mut output = String::from("{");
-        list.child
-            .iter()
-            .for_each(|atom| output += &(ast_to_string(atom.clone()) + " "));
-        String::from(&output[0..output.len() - 1]) + "}" // TODO this is not very elegant... but it does the job
-    }
-}
-
-fn pr_array(list: List) -> String {
-    if list.child.is_empty() {
-        String::from("[]")
-    } else {
-        // let mut output = String::from("[");
-        let new_output: Vec<String> = list.child.iter().map(|atom| ast_to_string(atom.clone())).collect();
-        format!("{}{}{}", "[", new_output.join(" "), "]")
-        // list.child
-        //     .iter()
-        //     .for_each(|atom| output += &(ast_to_string(atom.clone()) + " "));
-        // String::from(&output[0..output.len() - 1]) + "]" // TODO this is not very elegant... but it does the job
-    }
-}
-
-fn pr_list(list: List) -> String {
-    if list.child.is_empty() {
-        String::from("()")
-    } else {
-        let mut output = String::from("(");
-        list.child
-            .iter()
-            .for_each(|atom| output += &(ast_to_string(atom.clone()) + " "));
-        String::from(&output[0..output.len() - 1]) + ")" // TODO this is not very elegant... but it does the job
-    }
+fn pr_sequence(list: List, start: &str, end: &str) -> String {
+    let new_output: Vec<String> = list.child.iter().map(|atom| ast_to_string(atom.clone())).collect();
+    format!("{}{}{}", start, new_output.join(" "), end)
 }
 
 fn pr_atom(atom: Atom) -> String {
@@ -59,12 +26,13 @@ fn pr_atom(atom: Atom) -> String {
         Atom::Nil => "nil".to_string(),
         Atom::True => "true".to_string(),
         Atom::False => "false".to_string(),
-        Atom::String(value) => String::from("\"") + &value + "\"",
+        Atom::String(value) => value,
         Atom::Keyword(value) => value,
         Atom::SpliceUnquote => "splice-unquote".to_string(),
         Atom::Unquote => "unquote".to_string(),
         Atom::Deref => "deref".to_string(),
         Atom::Quote => "quote".to_string(),
+        Atom::QuasiQuote => "quasiquote".to_string(),
         Atom::WithMeta => "with-meta".to_string(),
     }
 }
@@ -73,10 +41,6 @@ fn pr_atom(atom: Atom) -> String {
 mod test {
     use super::*;
     #[test]
-    fn test_printing() {
-        let ast = Type::List(List { child: vec![] });
-        assert_eq!(ast_to_string(ast), "()".to_string());
-    }
 
     fn test_printing() {
         let ast = Type::List(List {
