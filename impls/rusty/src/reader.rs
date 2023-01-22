@@ -12,7 +12,6 @@ pub enum TokenizerError {
     UnbalancedArray,
     UnbalancedList,
     UnbalancedMap,
-    RandomEscape,
 }
 
 impl std::error::Error for TokenizerError {}
@@ -38,7 +37,6 @@ impl core::fmt::Display for TokenizerError {
             TokenizerError::UnbalancedList => write!(f, "EOF while parsing List"),
             TokenizerError::UnbalancedArray => write!(f, "EOF while parsing Array"),
             TokenizerError::UnbalancedMap => write!(f, "EOF while parsing Map"),
-            TokenizerError::RandomEscape => write!(f, "Found a random escape not iside a String"),
         }
     }
 }
@@ -55,11 +53,8 @@ pub enum Tokens {
     LeftBraket,
     RightBraket,
     String(String),
-    LeftString(String),
-    RightString(String),
     Comment(String),
     Atom(String),
-    Escape,
 } // Captures a sequence of zero or more non special characters (e.g. symbols, numbers, "true", "false")
 
 const STANDALONE_TOKENS_MAPPING: [(&str, Tokens); 7] = [
@@ -130,14 +125,8 @@ impl<T: ReaderTrait> Reader<T> {
                     if cap[1].starts_with(';') {
                         let token = Tokens::Comment(cap[1].to_string());
                         tokens.push(token);
-                    } else if cap[1].starts_with('\\') {
-                        tokens.push(Tokens::Escape);
-                    } else if cap[1].starts_with('\"') && cap[1].ends_with('\"') {
+                    }  else if cap[1].starts_with('\"') {
                         tokens.push(Tokens::String(cap[1].to_string()));
-                    } else if cap[1].starts_with('\"') {
-                        tokens.push(Tokens::LeftString(cap[1].to_string()));
-                    } else if cap[1].ends_with('\"') {
-                        tokens.push(Tokens::RightString(cap[1].to_string()));
                     } else {
                         let token = Tokens::Atom(cap[1].to_string());
                         tokens.push(token);
@@ -187,39 +176,32 @@ impl<T: ReaderTrait> Reader<T> {
                 TokenizerError::UnbalancedMap,
             ),
             Tokens::RightBraket => Err(TokenizerError::UnbalancedMap),
-            Tokens::String(content) => Ok(Type::Atom(Atom::String(content))),
-            Tokens::LeftString(content) => self.read_string(content),
-            Tokens::RightString(content) => Err(TokenizerError::Quote(format!(
-                "unbalanced quote at {}, EOF",
-                content
-            ))),
+            Tokens::String(content) => self.read_string(content),
             Tokens::Comment(_) => self.read_from(), // skip the current comment
             Tokens::Atom(content) => self.read_atom(content),
-            Tokens::Escape => Err(TokenizerError::RandomEscape),
         }
     }
 
-    fn read_string(&mut self, mut content: String) -> TokenizerResult<Type> {
-        while let Ok(token) = self.next() {
-            match token {
-                Tokens::Escape => content += "\\",
-                Tokens::Atom(value) => content += &value,
-                Tokens::RightString(value) => {
-                    return Ok(Type::Atom(Atom::String(content + &value)))
-                }
-                Tokens::String(value) => return Ok(Type::Atom(Atom::String(content + &value))),
-                token => {
-                    return Err(TokenizerError::Quote(format!(
-                        "err unterminated quote starting at {}, val {:?}",
-                        content, token
-                    )))
-                }
+    fn read_string(&mut self, content: String) -> TokenizerResult<Type> {
+        // Black magic for parsing the content of the string, not very proud of it, but
+        // it works.
+        let escaped = content.chars().fold((false, false), |escaped, ch| {
+            if escaped.0 {
+                (false, if ch == '\"' { true } else { false })
+            } else {
+                if ch == '\\' { (true, false) } else { (false, false) }
             }
+        });
+
+        if escaped.0 || !content.ends_with("\"") || escaped.1 || content.len() < 2 {
+            Err(TokenizerError::Quote(format!(
+                "unterminated quote starting at {}",
+                content
+            )))
+
+        } else {
+            return Ok(Type::Atom(Atom::String(content)));
         }
-        Err(TokenizerError::Quote(format!(
-            "unterminated quote starting at {}",
-            content
-        )))
     }
 
     fn read_sequence_until<F>(
