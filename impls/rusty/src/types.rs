@@ -8,6 +8,10 @@ pub enum Atom {
     String(String),
     Keyword(String),
     SpliceUnquote,
+    Unquote,
+    Deref,
+    Quote,
+    WithMeta
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -20,4 +24,5 @@ pub enum Type {
     Atom(Atom),
     List(List),
     Array(List),
+    Map(List),
 }

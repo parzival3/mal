@@ -11,6 +11,7 @@ pub enum TokenizerError {
     ReadList(usize, String),
     UnbalancedArray,
     UnbalancedList,
+    UnbalancedMap,
 }
 
 impl std::error::Error for TokenizerError {}
@@ -33,8 +34,9 @@ impl core::fmt::Display for TokenizerError {
                 "Tokenizer Error, List Error at index {}, {}",
                 index, message
             ),
-            TokenizerError::UnbalancedList => write!(f, "(EOF|end of input|unbalanced)"),
-            TokenizerError::UnbalancedArray => write!(f, "(EOF|end of input|unbalanced)"),
+            TokenizerError::UnbalancedList => write!(f, "EOF while parsing List"),
+            TokenizerError::UnbalancedArray => write!(f, "EOF while parsing Array"),
+            TokenizerError::UnbalancedMap => write!(f, "EOF while parsing Map"),
         }
     }
 }
@@ -168,13 +170,13 @@ impl<T: ReaderTrait> Reader<T> {
         match self.next()? {
             Tokens::TildeAt => self.read_at(),
             Tokens::LeftParen => self.read_list(),
-            Tokens::RightParen => todo!(),
+            Tokens::RightParen => Err(TokenizerError::UnbalancedList),
             Tokens::LeftSquareBraket => self.read_square(),
-            Tokens::RightSquareBraket => todo!(),
-            Tokens::LeftBraket => todo!(),
-            Tokens::RightBraket => todo!(),
+            Tokens::RightSquareBraket => Err(TokenizerError::UnbalancedArray),
+            Tokens::LeftBraket => self.read_curly(),
+            Tokens::RightBraket => Err(TokenizerError::UnbalancedMap),
             Tokens::String(content) => self.read_atom(content),
-            Tokens::Comment(_) => todo!(),
+            Tokens::Comment(_) => self.read_from(), // skip the current comment
             Tokens::Atom(content) => self.read_atom(content),
         }
     }
@@ -185,6 +187,18 @@ impl<T: ReaderTrait> Reader<T> {
             Ok(tail) => Ok(Type::List(List { child : vec![head, tail] })),
             error => error
         }
+    }
+
+    fn read_curly(&mut self) -> TokenizerResult<Type> {
+        let mut content = Vec::new();
+        while let Ok(token) = self.peek() {
+            if token == Tokens::RightBraket {
+                let _ = self.next();
+                return Ok(Type::Map(List { child: content }));
+            }
+            content.push(self.read_from()?);
+        }
+        Err(TokenizerError::UnbalancedMap)
     }
 
     fn read_square(&mut self) -> TokenizerResult<Type> {
@@ -234,6 +248,22 @@ impl<T: ReaderTrait> Reader<T> {
 
         if content.starts_with(':') {
             return Ok(Type::Atom(Atom::Keyword(content)));
+        }
+
+        if content.starts_with('\'') {
+            return Ok(Type::Atom(Atom::Quote));
+        }
+
+        if content.starts_with('@') {
+            return Ok(Type::Atom(Atom::Deref));
+        }
+
+        if content.starts_with('^') {
+            return Ok(Type::Atom(Atom::WithMeta));
+        }
+
+        if content.starts_with('~') {
+            return Ok(Type::Atom(Atom::Unquote));
         }
 
         return Ok(Type::Atom(Atom::Symbol(content)));

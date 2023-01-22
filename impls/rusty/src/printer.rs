@@ -10,19 +10,33 @@ fn ast_to_string(ast: Type) -> String {
         Type::Atom(atom) => pr_atom(atom),
         Type::List(list) => pr_list(list),
         Type::Array(list) => pr_array(list),
+        Type::Map(list) => pr_map(list),
     }
 }
 
+fn pr_map(list: List) -> String {
+    if list.child.is_empty() {
+        String::from("{}")
+    } else {
+        let mut output = String::from("{");
+        list.child
+            .iter()
+            .for_each(|atom| output += &(ast_to_string(atom.clone()) + " "));
+        String::from(&output[0..output.len() - 1]) + "}" // TODO this is not very elegant... but it does the job
+    }
+}
 
 fn pr_array(list: List) -> String {
     if list.child.is_empty() {
         String::from("[]")
     } else {
-        let mut output = String::from("[");
-        list.child
-            .iter()
-            .for_each(|atom| output += &(ast_to_string(atom.clone()) + " "));
-        String::from(&output[0..output.len() - 1]) + "]" // TODO this is not very elegant... but it does the job
+        // let mut output = String::from("[");
+        let new_output: Vec<String> = list.child.iter().map(|atom| ast_to_string(atom.clone())).collect();
+        format!("{}{}{}", "[", new_output.join(" "), "]")
+        // list.child
+        //     .iter()
+        //     .for_each(|atom| output += &(ast_to_string(atom.clone()) + " "));
+        // String::from(&output[0..output.len() - 1]) + "]" // TODO this is not very elegant... but it does the job
     }
 }
 
@@ -47,7 +61,11 @@ fn pr_atom(atom: Atom) -> String {
         Atom::False => "false".to_string(),
         Atom::String(value) => String::from("\"") + &value + "\"",
         Atom::Keyword(value) => value,
-        Atom::SpliceUnquote => "splice-unquote".to_string()
+        Atom::SpliceUnquote => "splice-unquote".to_string(),
+        Atom::Unquote => "unquote".to_string(),
+        Atom::Deref => "deref".to_string(),
+        Atom::Quote => "quote".to_string(),
+        Atom::WithMeta => "with-meta".to_string(),
     }
 }
 
