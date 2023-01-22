@@ -190,31 +190,33 @@ impl<T: ReaderTrait> Reader<T> {
     fn validate_string(&mut self, content: String) -> TokenizerResult<Type> {
         // Black magic for parsing the content of the string, not very proud of it, but
         // it works.
-        // The escaped "accumulator" is a pair where the first enum represent if we
+        // The StringChecks "accumulator" is a struct where the first field represent if we
         // have a properly escaped string and the second one represent if the last double quote (") was
-        // an escaped one.
-        #[derive(PartialEq)]
-        enum Escaping {
-            Missing,
-            NotMissing
+        // an escaped one. The struct is not actually need a pair of boolean will suffice but makes this
+        // clumsy algorithm more easy to understand
+
+        struct StringChecks {
+            pub missing_escape: bool,
+            pub is_last_quote_escaped: bool
         }
 
-        #[derive(PartialEq)]
-        enum LastEscape {
-            IsQuote,
-            IsntQuote
-
-        }
-
-        let escaped = content.chars().fold((Escaping::NotMissing, LastEscape::IsQuote), |escaped, ch| {
-            if escaped.0 == Escaping::Missing {
-                (Escaping::NotMissing, if ch == '\"' { LastEscape::IsQuote } else { LastEscape::IsntQuote })
+        let escaped = content.chars().fold(StringChecks{missing_escape: false, is_last_quote_escaped: false}, |escaped, ch| {
+            if escaped.missing_escape {
+                if ch == '\"' {
+                    StringChecks{ missing_escape: false, is_last_quote_escaped: true }
+                } else {
+                    StringChecks{ missing_escape: false, is_last_quote_escaped: false }
+                }
             } else {
-                if ch == '\\' { (Escaping::Missing, LastEscape::IsntQuote) } else { (Escaping::NotMissing, LastEscape::IsntQuote) }
+                if ch == '\\' {
+                    StringChecks{ missing_escape: true, is_last_quote_escaped: false }
+                } else {
+                    StringChecks{ missing_escape: false, is_last_quote_escaped: false }
+                }
             }
         });
 
-        if escaped.0 == Escaping::Missing || escaped.1 == LastEscape::IsQuote {
+        if escaped.missing_escape  || escaped.is_last_quote_escaped  {
             Err(TokenizerError::Quote(format!(
                 "unterminated quote starting at {}",
                 content
