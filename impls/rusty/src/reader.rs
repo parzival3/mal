@@ -88,6 +88,10 @@ pub struct InternalReader {
     counter: usize,
 }
 
+// The reader trait is not needed, the idea behind it was to
+// allow to easilly swap the "regex" implementation and the "scanner"
+// implementation with minimal effor and without breaking the
+// "regex" one
 impl ReaderTrait for InternalReader {
     fn new(tokens: Vec<Tokens>) -> Self {
         InternalReader { tokens, counter: 0 }
