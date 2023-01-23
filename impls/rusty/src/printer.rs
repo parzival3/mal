@@ -15,7 +15,11 @@ fn ast_to_string(ast: Type) -> String {
 }
 
 fn pr_sequence(list: List, start: &str, end: &str) -> String {
-    let new_output: Vec<String> = list.child.iter().map(|atom| ast_to_string(atom.clone())).collect();
+    let new_output: Vec<String> = list
+        .child
+        .iter()
+        .map(|atom| ast_to_string(atom.clone()))
+        .collect();
     format!("{}{}{}", start, new_output.join(" "), end)
 }
 

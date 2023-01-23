@@ -12,12 +12,12 @@ pub enum Atom {
     Deref,
     Quote,
     QuasiQuote,
-    WithMeta
+    WithMeta,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct List {
-    pub child: Vec<Type>
+    pub child: Vec<Type>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

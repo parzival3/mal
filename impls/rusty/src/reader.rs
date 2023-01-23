@@ -113,7 +113,9 @@ impl<T: ReaderTrait> Reader<T> {
     // input by hand in order to save the position of the token so the error report
     // can be more useful
     pub fn tokenize(input: &str) -> TokenizerResult<Reader<T>> {
-        let regex = Regex::new(concat!(r###"[\s,]*(~@|[\[\]{}()'`~^@]|"(?:\\.|[^\\"])*"?|;.*|[^\s\[\]{}('"`,;)]+)"###))
+        let regex = Regex::new(concat!(
+            r###"[\s,]*(~@|[\[\]{}()'`~^@]|"(?:\\.|[^\\"])*"?|;.*|[^\s\[\]{}('"`,;)]+)"###
+        ))
         .unwrap();
 
         let mut tokens = Vec::new();
@@ -125,11 +127,12 @@ impl<T: ReaderTrait> Reader<T> {
                     if cap[1].starts_with(';') {
                         let token = Tokens::Comment(cap[1].to_string());
                         tokens.push(token);
-                    }  else if cap[1].starts_with('\"') {
+                    } else if cap[1].starts_with('\"') {
                         if !cap[1].ends_with('\"') || cap[1].len() < 2 {
-                        return Err(TokenizerError::Quote(format!(
-                            "unterminated quote starting at {}",
-                            &cap[1])));
+                            return Err(TokenizerError::Quote(format!(
+                                "unterminated quote starting at {}",
+                                &cap[1]
+                            )));
                         }
                         tokens.push(Tokens::String(cap[1].to_string()));
                     } else {
@@ -197,31 +200,48 @@ impl<T: ReaderTrait> Reader<T> {
 
         struct StringChecks {
             pub missing_escape: bool,
-            pub is_last_quote_escaped: bool
+            pub is_last_quote_escaped: bool,
         }
 
-        let escaped = content.chars().fold(StringChecks{missing_escape: false, is_last_quote_escaped: false}, |escaped, ch| {
-            if escaped.missing_escape {
-                if ch == '\"' {
-                    StringChecks{ missing_escape: false, is_last_quote_escaped: true }
+        let escaped = content.chars().fold(
+            StringChecks {
+                missing_escape: false,
+                is_last_quote_escaped: false,
+            },
+            |escaped, ch| {
+                if escaped.missing_escape {
+                    if ch == '\"' {
+                        StringChecks {
+                            missing_escape: false,
+                            is_last_quote_escaped: true,
+                        }
+                    } else {
+                        StringChecks {
+                            missing_escape: false,
+                            is_last_quote_escaped: false,
+                        }
+                    }
                 } else {
-                    StringChecks{ missing_escape: false, is_last_quote_escaped: false }
+                    if ch == '\\' {
+                        StringChecks {
+                            missing_escape: true,
+                            is_last_quote_escaped: false,
+                        }
+                    } else {
+                        StringChecks {
+                            missing_escape: false,
+                            is_last_quote_escaped: false,
+                        }
+                    }
                 }
-            } else {
-                if ch == '\\' {
-                    StringChecks{ missing_escape: true, is_last_quote_escaped: false }
-                } else {
-                    StringChecks{ missing_escape: false, is_last_quote_escaped: false }
-                }
-            }
-        });
+            },
+        );
 
-        if escaped.missing_escape  || escaped.is_last_quote_escaped  {
+        if escaped.missing_escape || escaped.is_last_quote_escaped {
             Err(TokenizerError::Quote(format!(
                 "unterminated quote starting at {}",
                 content
             )))
-
         } else {
             return Ok(Type::Atom(Atom::String(content)));
         }
@@ -254,6 +274,14 @@ impl<T: ReaderTrait> Reader<T> {
             })),
             error => error,
         }
+    }
+
+    fn read_with_meta(&mut self) -> TokenizerResult<Type> {
+        let first_arg = self.read_from()?; // TODO maybe this can be improved
+        let second_arg = self.read_from()?;
+        Ok(Type::List(List {
+            child: vec![Type::Atom(Atom::WithMeta), second_arg, first_arg],
+        }))
     }
 
     fn read_atom(&mut self, content: String) -> TokenizerResult<Type> {
@@ -290,7 +318,7 @@ impl<T: ReaderTrait> Reader<T> {
         }
 
         if content.starts_with('^') {
-            return self.read_quote(Type::Atom(Atom::WithMeta));
+            return self.read_with_meta();
         }
 
         if content.starts_with('~') {
@@ -337,9 +365,8 @@ pub mod test {
     fn testing_escaped_qoute() {
         let mut reader = Reader::<InternalReader>::tokenize(r###""\""###)
             .expect("We should be able to create a Reader");
-        let ast = reader
-            .read_from();
-        println!("AST is {:?}", ast);  // TODO remove
+        let ast = reader.read_from();
+        println!("AST is {:?}", ast); // TODO remove
         assert!(ast.is_err());
     }
 
@@ -350,7 +377,10 @@ pub mod test {
         let ast = reader
             .read_from()
             .expect("We should be able to parse a single atom");
-        assert_eq!(ast, Type::Atom(Atom::String("\"abc \\\" dfg\"".to_string())));
+        assert_eq!(
+            ast,
+            Type::Atom(Atom::String("\"abc \\\" dfg\"".to_string()))
+        );
     }
 
     #[test]
