@@ -1,7 +1,22 @@
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Symbol(pub String);
+impl From<&str> for Symbol {
+    fn from(s: &str) -> Self {
+        Symbol(String::from(s))
+    }
+}
+
+impl std::fmt::Display for Symbol {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(&self.0, f)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
-pub enum Atom {
+pub enum Value {
     Integer(i64),
-    Symbol(String),
+    Symbol(Symbol),
     Nil,
     True,
     False,
@@ -22,8 +37,9 @@ pub struct List {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Type {
-    Atom(Atom),
+    Atom(Value),
     List(List),
     Array(List),
     Map(List),
+    Fun
 }

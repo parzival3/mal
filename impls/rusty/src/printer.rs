@@ -11,7 +11,12 @@ fn ast_to_string(ast: Type) -> String {
         Type::List(list) => pr_sequence(list, "(", ")"),
         Type::Array(list) => pr_sequence(list, "[", "]"),
         Type::Map(list) => pr_sequence(list, "{", "}"),
+        Type::Fun => pr_fun(),
     }
+}
+
+fn pr_fun() -> String {
+    String::from("<function>")
 }
 
 fn pr_sequence(list: List, start: &str, end: &str) -> String {
@@ -23,21 +28,21 @@ fn pr_sequence(list: List, start: &str, end: &str) -> String {
     format!("{}{}{}", start, new_output.join(" "), end)
 }
 
-fn pr_atom(atom: Atom) -> String {
+fn pr_atom(atom: Value) -> String {
     match atom {
-        Atom::Integer(value) => value.to_string(),
-        Atom::Symbol(value) => value,
-        Atom::Nil => "nil".to_string(),
-        Atom::True => "true".to_string(),
-        Atom::False => "false".to_string(),
-        Atom::String(value) => value,
-        Atom::Keyword(value) => value,
-        Atom::SpliceUnquote => "splice-unquote".to_string(),
-        Atom::Unquote => "unquote".to_string(),
-        Atom::Deref => "deref".to_string(),
-        Atom::Quote => "quote".to_string(),
-        Atom::QuasiQuote => "quasiquote".to_string(),
-        Atom::WithMeta => "with-meta".to_string(),
+        Value::Integer(value) => value.to_string(),
+        Value::Symbol(value) => value.to_string(),
+        Value::Nil => "nil".to_string(),
+        Value::True => "true".to_string(),
+        Value::False => "false".to_string(),
+        Value::String(value) => value,
+        Value::Keyword(value) => value,
+        Value::SpliceUnquote => "splice-unquote".to_string(),
+        Value::Unquote => "unquote".to_string(),
+        Value::Deref => "deref".to_string(),
+        Value::Quote => "quote".to_string(),
+        Value::QuasiQuote => "quasiquote".to_string(),
+        Value::WithMeta => "with-meta".to_string(),
     }
 }
 
@@ -49,9 +54,9 @@ mod test {
     fn test_printing() {
         let ast = Type::List(List {
             child: vec![
-                Type::Atom(Atom::Symbol(String::from("+"))),
-                Type::Atom(Atom::Integer(1)),
-                Type::Atom(Atom::Integer(2)),
+                Type::Atom(Value::Symbol(String::from("+"))),
+                Type::Atom(Value::Integer(1)),
+                Type::Atom(Value::Integer(2)),
             ],
         });
         assert_eq!(ast_to_string(ast), "(+ 1 2)".to_string());
@@ -61,9 +66,9 @@ mod test {
     fn testing_printing_nested_lists() {
         let ast = Type::List(List {
             child: vec![
-                Type::Atom(Atom::Symbol(String::from("+"))),
+                Type::Atom(Value::Symbol(String::from("+"))),
                 Type::List(List {
-                    child: vec![Type::Atom(Atom::Symbol(String::from("+")))],
+                    child: vec![Type::Atom(Value::Symbol(String::from("+")))],
                 }),
             ],
         });

@@ -169,7 +169,7 @@ impl<T: ReaderTrait> Reader<T> {
 
     pub fn read_from(&mut self) -> TokenizerResult<Type> {
         match self.next()? {
-            Tokens::TildeAt => self.read_quote(Type::Atom(Atom::SpliceUnquote)),
+            Tokens::TildeAt => self.read_quote(Type::Atom(Value::SpliceUnquote)),
             Tokens::LeftParen => self.read_sequence_until(
                 Tokens::RightParen,
                 |child| Type::List(List { child }),
@@ -247,7 +247,7 @@ impl<T: ReaderTrait> Reader<T> {
                 content
             )))
         } else {
-            return Ok(Type::Atom(Atom::String(content)));
+            return Ok(Type::Atom(Value::String(content)));
         }
     }
 
@@ -284,41 +284,41 @@ impl<T: ReaderTrait> Reader<T> {
         let first_arg = self.read_from()?; // TODO maybe this can be improved
         let second_arg = self.read_from()?;
         Ok(Type::List(List {
-            child: vec![Type::Atom(Atom::WithMeta), second_arg, first_arg],
+            child: vec![Type::Atom(Value::WithMeta), second_arg, first_arg],
         }))
     }
 
     fn read_atom(&mut self, content: String) -> TokenizerResult<Type> {
         if content == "nil" {
-            return Ok(Type::Atom(Atom::Nil));
+            return Ok(Type::Atom(Value::Nil));
         }
 
         if let Ok(value) = content.parse::<i64>() {
-            return Ok(Type::Atom(Atom::Integer(value)));
+            return Ok(Type::Atom(Value::Integer(value)));
         }
 
         if content == "true" {
-            return Ok(Type::Atom(Atom::True));
+            return Ok(Type::Atom(Value::True));
         }
 
         if content == "false" {
-            return Ok(Type::Atom(Atom::False));
+            return Ok(Type::Atom(Value::False));
         }
 
         if content.starts_with(':') {
-            return Ok(Type::Atom(Atom::Keyword(content)));
+            return Ok(Type::Atom(Value::Keyword(content)));
         }
 
         if content.starts_with('`') {
-            return self.read_quote(Type::Atom(Atom::QuasiQuote));
+            return self.read_quote(Type::Atom(Value::QuasiQuote));
         }
 
         if content.starts_with('\'') {
-            return self.read_quote(Type::Atom(Atom::Quote));
+            return self.read_quote(Type::Atom(Value::Quote));
         }
 
         if content.starts_with('@') {
-            return self.read_quote(Type::Atom(Atom::Deref));
+            return self.read_quote(Type::Atom(Value::Deref));
         }
 
         if content.starts_with('^') {
@@ -326,10 +326,10 @@ impl<T: ReaderTrait> Reader<T> {
         }
 
         if content.starts_with('~') {
-            return self.read_quote(Type::Atom(Atom::Unquote));
+            return self.read_quote(Type::Atom(Value::Unquote));
         }
 
-        return Ok(Type::Atom(Atom::Symbol(content)));
+        return Ok(Type::Atom(Value::Symbol(Symbol(content))));
     }
 }
 
@@ -360,7 +360,7 @@ pub mod test {
         assert_eq!(
             ast,
             Type::List(List {
-                child: vec![Type::Atom(Atom::Symbol(String::from("+")))]
+                child: vec![Type::Atom(Value::Symbol(String::from("+")))]
             })
         );
     }
@@ -383,7 +383,7 @@ pub mod test {
             .expect("We should be able to parse a single atom");
         assert_eq!(
             ast,
-            Type::Atom(Atom::String("\"abc \\\" dfg\"".to_string()))
+            Type::Atom(Value::String("\"abc \\\" dfg\"".to_string()))
         );
     }
 
@@ -398,11 +398,11 @@ pub mod test {
             ast,
             Type::List(List {
                 child: vec![
-                    Type::Atom(Atom::Symbol(String::from("+"))),
+                    Type::Atom(Value::Symbol(String::from("+"))),
                     Type::List(List {
-                        child: vec![Type::Atom(Atom::Symbol(String::from("+")))]
+                        child: vec![Type::Atom(Value::Symbol(String::from("+")))]
                     }),
-                    Type::Atom(Atom::Integer(1))
+                    Type::Atom(Value::Integer(1))
                 ]
             })
         );
@@ -419,9 +419,9 @@ pub mod test {
             ast,
             Type::List(List {
                 child: vec![
-                    Type::Atom(Atom::Symbol(String::from("+"))),
-                    Type::Atom(Atom::Integer(1)),
-                    Type::Atom(Atom::Integer(2))
+                    Type::Atom(Value::Symbol(String::from("+"))),
+                    Type::Atom(Value::Integer(1)),
+                    Type::Atom(Value::Integer(2))
                 ]
             })
         );
@@ -438,8 +438,8 @@ pub mod test {
             ast,
             Type::List(List {
                 child: vec![
-                    Type::Atom(Atom::Symbol(String::from("+"))),
-                    Type::Atom(Atom::Keyword(String::from(":test")))
+                    Type::Atom(Value::Symbol(String::from("+"))),
+                    Type::Atom(Value::Keyword(String::from(":test")))
                 ]
             })
         );
@@ -456,10 +456,10 @@ pub mod test {
             ast,
             Type::List(List {
                 child: vec![
-                    Type::Atom(Atom::Symbol(String::from("+"))),
-                    Type::Atom(Atom::Nil),
-                    Type::Atom(Atom::True),
-                    Type::Atom(Atom::False)
+                    Type::Atom(Value::Symbol(String::from("+"))),
+                    Type::Atom(Value::Nil),
+                    Type::Atom(Value::True),
+                    Type::Atom(Value::False)
                 ]
             })
         );
@@ -475,7 +475,7 @@ pub mod test {
         assert_eq!(
             ast,
             Type::List(List {
-                child: vec![Type::Atom(Atom::String(String::from("\"Hello World\"")))]
+                child: vec![Type::Atom(Value::String(String::from("\"Hello World\"")))]
             })
         );
     }
