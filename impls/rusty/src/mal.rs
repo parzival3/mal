@@ -1,6 +1,7 @@
 use crate::printer::pr_str;
 use crate::reader::*;
 use crate::types::*;
+use crate::env::*;
 
 pub fn read(input_string: &str) -> TokenizerResult<Type> {
     let mut string = input_string.to_owned();
@@ -10,6 +11,8 @@ pub fn read(input_string: &str) -> TokenizerResult<Type> {
 }
 
 pub fn eval(ast: TokenizerResult<Type>) -> TokenizerResult<Type> {
+    let env = Env::new(None);
+    let sum = NativeFun(|_, __| -> Ok(Type::Atom(Value::Integer{3})));
     ast
 }
 

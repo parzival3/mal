@@ -11,7 +11,7 @@ fn ast_to_string(ast: Type) -> String {
         Type::List(list) => pr_sequence(list, "(", ")"),
         Type::Array(list) => pr_sequence(list, "[", "]"),
         Type::Map(list) => pr_sequence(list, "{", "}"),
-        Type::Fun => pr_fun(),
+        Type::NativeFun(_) => pr_fun(),
     }
 }
 
@@ -54,7 +54,7 @@ mod test {
     fn test_printing() {
         let ast = Type::List(List {
             child: vec![
-                Type::Atom(Value::Symbol(String::from("+"))),
+                Type::Atom(Value::Symbol(Symbol(String::from("+")))),
                 Type::Atom(Value::Integer(1)),
                 Type::Atom(Value::Integer(2)),
             ],
@@ -66,9 +66,9 @@ mod test {
     fn testing_printing_nested_lists() {
         let ast = Type::List(List {
             child: vec![
-                Type::Atom(Value::Symbol(String::from("+"))),
+                Type::Atom(Value::Symbol(Symbol(String::from("+")))),
                 Type::List(List {
-                    child: vec![Type::Atom(Value::Symbol(String::from("+")))],
+                    child: vec![Type::Atom(Value::Symbol(Symbol(String::from("+"))))],
                 }),
             ],
         });
