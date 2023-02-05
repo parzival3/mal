@@ -1,8 +1,8 @@
 use crate::{types::*, errors::TokenizerError};
 use regex::Regex;
+use crate::errors::*;
 
 
-pub type TokenizerResult<T> = std::result::Result<T, TokenizerError>;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Tokens {

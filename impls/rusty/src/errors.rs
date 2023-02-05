@@ -1,3 +1,5 @@
+use std::cell::BorrowError;
+
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenizerError {
@@ -40,10 +42,28 @@ impl core::fmt::Display for TokenizerError {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum RuntimeError{}
+pub enum RuntimeError{
+    Evaluation,
+    EnviromentBorrowDispute(String), // Trying accessing the enviroment from two part of the code
+    ValueNotFound(String)
+}
 impl std::error::Error for RuntimeError {}
 impl core::fmt::Display for RuntimeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "TODO: RuntimeError")
+        match self {
+            RuntimeError::Evaluation => write!(f, "Evaluation Error"),
+            RuntimeError::EnviromentBorrowDispute(val) => write!(f, "EnviromentDispute Error {}", val),
+            RuntimeError::ValueNotFound(val) => write!(f, "Value not found in eviroment {}", val)
+        }
     }
 }
+
+impl From<BorrowError> for RuntimeError {
+    fn from(e: BorrowError) -> Self {
+        RuntimeError::EnviromentBorrowDispute(e.to_string())
+    }
+}
+
+
+pub type TokenizerResult<T> = std::result::Result<T, TokenizerError>;
+pub type RuntimeResult<T> = std::result::Result<T, RuntimeError>;

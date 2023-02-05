@@ -1,8 +1,6 @@
-use std::rc::Rc;
-
 use crate::{env::RcEnv, errors::RuntimeError};
 
-pub type NativeFun = fn(env: RcEnv, args: Vec<Value>) -> Result<Value, RuntimeError>;
+pub type NativeFun = fn(env: RcEnv, args: Vec<Value>) -> Result<Type, RuntimeError>;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Symbol(pub String);
@@ -39,7 +37,6 @@ pub enum Value {
 pub struct List {
     pub child: Vec<Type>,
 }
-
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Type {

@@ -19,4 +19,13 @@ impl Env {
             entries: HashMap::<Symbol, Type>::new()
         }
     }
+
+    pub fn add(&mut self, name: Symbol, value: Type) {
+        self.entries.insert(name, value);
+    }
+
+    pub fn get(&self, key: &Symbol) -> Option<Type> {
+        self.entries.get(key).cloned()
+    }
+
 }
