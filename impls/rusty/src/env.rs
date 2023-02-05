@@ -1,6 +1,6 @@
 use std::{collections::HashMap, rc::Rc, cell::RefCell};
 
-use crate::types::{Type, Symbol};
+use crate::types::{Value, Symbol};
 
 pub type RcEnv = Rc<RefCell<Env>>;
 
@@ -9,23 +9,19 @@ pub type RcEnv = Rc<RefCell<Env>>;
 #[derive(Debug)]
 pub struct Env {
     parent: Option<RcEnv>,
-    entries: HashMap<Symbol, Type>,
+    entries: HashMap<Symbol, Value>,
 }
 
 impl Env {
     pub fn new(parent: Option<RcEnv>) -> Self {
         Env {
             parent,
-            entries: HashMap::<Symbol, Type>::new()
+            entries: HashMap::<Symbol, Value>::new()
         }
     }
 
-    pub fn add(&mut self, name: Symbol, value: Type) {
+    pub fn add(&mut self, name: Symbol, value: Value) {
         self.entries.insert(name, value);
-    }
-
-    pub fn get(&self, key: &Symbol) -> Option<Type> {
-        self.entries.get(key).cloned()
     }
 
 }

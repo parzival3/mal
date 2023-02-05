@@ -1,6 +1,8 @@
+use crate::list::*;
+
 use crate::{env::RcEnv, errors::RuntimeError};
 
-pub type NativeFun = fn(env: RcEnv, args: Vec<Value>) -> Result<Type, RuntimeError>;
+pub type NativeFun = fn(env: RcEnv, args: Vec<Value>) -> Result<Value, RuntimeError>;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Symbol(pub String);
@@ -16,7 +18,8 @@ impl std::fmt::Display for Symbol {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+
+#[derive(Debug, PartialEq)]
 pub enum Value {
     Integer(i64),
     Symbol(Symbol),
@@ -31,18 +34,40 @@ pub enum Value {
     Quote,
     QuasiQuote,
     WithMeta,
+    Array(List<Value>),
+    List(List<Value>),
+    Map(List<Value>),
+    NativeFun(NativeFun),
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct List {
-    pub child: Vec<Type>,
+impl std::fmt::Display for Value {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Value::Integer(val) => write!(f, "{}", val),
+            Value::Symbol(val) => write!(f, "{}", val),
+            Value::Nil => write!(f, "nil"),
+            Value::True => write!(f, "true"),
+            Value::False => write!(f, "false"),
+            Value::String(val) => write!(f, "{}", val),
+            Value::Keyword(val) => write!(f, "{}", val),
+            Value::SpliceUnquote => write!(f, "splice-unquote"),
+            Value::Unquote => write!(f, "unquote"),
+            Value::Deref => write!(f, "deref"),
+            Value::Quote => write!(f, "quote"),
+            Value::QuasiQuote => write!(f, "quasiquote"),
+            Value::WithMeta => write!(f, "with-meta"),
+            Value::Array(array) => write!(f, "{}", print_seq(array, "[", "]")),
+            Value::List(list) => write!(f, "{}", print_seq(list, "(", ")")),
+            Value::Map(map) => write!(f, "{}", print_seq(map, "{", "}")),
+            Value::NativeFun(func) => write!(f, "<nativefunc> {:?}", func)
+        }
+    }
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum Type {
-    Atom(Value),
-    List(List),
-    Array(List),
-    Map(List),
-    NativeFun(NativeFun)
+fn print_seq(list: &List<Value>, start: &str, end: &str) -> String {
+    let new_output: Vec<String> = list
+        .iter()
+        .map(|val| val.to_string())
+        .collect();
+    format!("{}{}{}", start, new_output.join(" "), end)
 }

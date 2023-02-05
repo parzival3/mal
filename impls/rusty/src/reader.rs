@@ -1,5 +1,6 @@
 use crate::errors::*;
-use crate::{errors::TokenizerError, types::*};
+use crate::list::*;
+use crate::types::*;
 use regex::Regex;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -126,24 +127,24 @@ impl<T: ReaderTrait> Reader<T> {
             .ok_or(TokenizerError::NoMoreTokens)
     }
 
-    pub fn read_from(&mut self) -> TokenizerResult<Type> {
+    pub fn read_from(&mut self) -> TokenizerResult<Value> {
         match self.next()? {
-            Tokens::TildeAt => self.read_quote(Type::Atom(Value::SpliceUnquote)),
+            Tokens::TildeAt => self.read_quote(Value::SpliceUnquote),
             Tokens::LeftParen => self.read_sequence_until(
                 Tokens::RightParen,
-                |child| Type::List(List { child }),
+                |child| Value::List(child),
                 TokenizerError::UnbalancedList,
             ),
             Tokens::RightParen => Err(TokenizerError::UnbalancedList),
             Tokens::LeftSquareBraket => self.read_sequence_until(
                 Tokens::RightSquareBraket,
-                |child| Type::Array(List { child }),
+                |child| Value::Array(child),
                 TokenizerError::UnbalancedArray,
             ),
             Tokens::RightSquareBraket => Err(TokenizerError::UnbalancedArray),
             Tokens::LeftBraket => self.read_sequence_until(
                 Tokens::RightBraket,
-                |child| Type::Map(List { child }),
+                |child| Value::Map(child),
                 TokenizerError::UnbalancedMap,
             ),
             Tokens::RightBraket => Err(TokenizerError::UnbalancedMap),
@@ -153,7 +154,7 @@ impl<T: ReaderTrait> Reader<T> {
         }
     }
 
-    fn validate_string(&mut self, content: String) -> TokenizerResult<Type> {
+    fn validate_string(&mut self, content: String) -> TokenizerResult<Value> {
         // Black magic for parsing the content of the string, not very proud of it, but
         // it works.
         // The StringChecks "accumulator" is a struct where the first field represent if we
@@ -206,7 +207,7 @@ impl<T: ReaderTrait> Reader<T> {
                 content
             )))
         } else {
-            return Ok(Type::Atom(Value::String(content)));
+            return Ok(Value::String(content));
         }
     }
 
@@ -215,69 +216,70 @@ impl<T: ReaderTrait> Reader<T> {
         stop_token: Tokens,
         create_token: F,
         error_condition: TokenizerError,
-    ) -> TokenizerResult<Type>
+    ) -> TokenizerResult<Value>
     where
-        F: Fn(Vec<Type>) -> Type,
+        F: Fn(List<Value>) -> Value,
     {
+        // This could be a simple fold if the inner type was an iterator peekable :-)
         let mut content = Vec::new();
         while let Ok(token) = self.peek() {
             if token == stop_token {
                 let _ = self.next();
-                return Ok(create_token(content));
+                return Ok(create_token(
+                    content
+                        .into_iter()
+                        .rfold(List::new(), |acc, elem| acc.prepend(elem)),
+                ));
             }
             content.push(self.read_from()?);
         }
         Err(error_condition)
     }
 
-    fn read_quote(&mut self, head: Type) -> TokenizerResult<Type> {
-        match self.read_from() {
-            Ok(tail) => Ok(Type::List(List {
-                child: vec![head, tail],
-            })),
-            error => error,
-        }
+    fn read_quote(&mut self, head: Value) -> TokenizerResult<Value> {
+        self.read_from()
+            .map(|val| Value::List(List::new().prepend(val).prepend(head)))
     }
 
-    fn read_with_meta(&mut self) -> TokenizerResult<Type> {
+    fn read_with_meta(&mut self) -> TokenizerResult<Value> {
         let first_arg = self.read_from()?; // TODO maybe this can be improved
         let second_arg = self.read_from()?;
-        Ok(Type::List(List {
-            child: vec![Type::Atom(Value::WithMeta), second_arg, first_arg],
-        }))
+        Ok(Value::List(
+            List::new().prepend(first_arg).prepend(second_arg).prepend(Value::WithMeta),
+        ))
     }
 
-    fn read_atom(&mut self, content: String) -> TokenizerResult<Type> {
+    fn read_atom(&mut self, content: String) -> TokenizerResult<Value> {
         if content == "nil" {
-            return Ok(Type::Atom(Value::Nil));
+            return Ok(Value::Nil);
         }
 
         if let Ok(value) = content.parse::<i64>() {
-            return Ok(Type::Atom(Value::Integer(value)));
+            return Ok(Value::Integer(value));
         }
 
         if content == "true" {
-            return Ok(Type::Atom(Value::True));
+            return Ok(Value::True);
         }
 
         if content == "false" {
-            return Ok(Type::Atom(Value::False));
+            return Ok(Value::False);
         }
 
         if content.starts_with(':') {
-            return Ok(Type::Atom(Value::Keyword(content)));
+            return Ok(Value::Keyword(content));
         }
 
         if content.starts_with('`') {
-            return self.read_quote(Type::Atom(Value::QuasiQuote));
+            return self.read_quote(Value::QuasiQuote);
         }
 
         if content.starts_with('\'') {
-            return self.read_quote(Type::Atom(Value::Quote));
+            return self.read_quote(Value::Quote);
         }
 
         if content.starts_with('@') {
-            return self.read_quote(Type::Atom(Value::Deref));
+            return self.read_quote(Value::Deref);
         }
 
         if content.starts_with('^') {
@@ -285,10 +287,10 @@ impl<T: ReaderTrait> Reader<T> {
         }
 
         if content.starts_with('~') {
-            return self.read_quote(Type::Atom(Value::Unquote));
+            return self.read_quote(Value::Unquote);
         }
 
-        return Ok(Type::Atom(Value::Symbol(Symbol(content))));
+        return Ok(Value::Symbol(Symbol(content)));
     }
 }
 
@@ -318,9 +320,7 @@ pub mod test {
             .expect("We should be able to parse a single atom");
         assert_eq!(
             ast,
-            Type::List(List {
-                child: vec![Type::Atom(Value::Symbol(Symbol(String::from("+"))))]
-            })
+            Value::List(List::new().prepend(Value::Symbol(Symbol::from("+"))))
         );
     }
 
@@ -340,10 +340,7 @@ pub mod test {
         let ast = reader
             .read_from()
             .expect("We should be able to parse a single atom");
-        assert_eq!(
-            ast,
-            Type::Atom(Value::String("\"abc \\\" dfg\"".to_string()))
-        );
+        assert_eq!(ast, Value::String("\"abc \\\" dfg\"".to_string()));
     }
 
     #[test]
@@ -355,15 +352,14 @@ pub mod test {
             .expect("We should be able to parse a single atom");
         assert_eq!(
             ast,
-            Type::List(List {
-                child: vec![
-                    Type::Atom(Value::Symbol(Symbol(String::from("+")))),
-                    Type::List(List {
-                        child: vec![Type::Atom(Value::Symbol(Symbol(String::from("+"))))]
-                    }),
-                    Type::Atom(Value::Integer(1))
-                ]
-            })
+            Value::List(
+                List::new()
+                    .prepend(Value::Integer(1))
+                    .prepend(Value::List(
+                        List::new().prepend(Value::Symbol(Symbol::from("+")))
+                    ))
+                    .prepend(Value::Symbol(Symbol::from("+")))
+            )
         );
     }
 
@@ -376,13 +372,12 @@ pub mod test {
             .expect("We should be able to parse a single atom");
         assert_eq!(
             ast,
-            Type::List(List {
-                child: vec![
-                    Type::Atom(Value::Symbol(Symbol(String::from("+")))),
-                    Type::Atom(Value::Integer(1)),
-                    Type::Atom(Value::Integer(2))
-                ]
-            })
+            Value::List(
+                List::new()
+                    .prepend(Value::Integer(2))
+                    .prepend(Value::Integer(1))
+                    .prepend(Value::Symbol(Symbol::from("+")))
+            )
         );
     }
 
@@ -395,12 +390,11 @@ pub mod test {
             .expect("We should be able to parse a single atom");
         assert_eq!(
             ast,
-            Type::List(List {
-                child: vec![
-                    Type::Atom(Value::Symbol(Symbol(String::from("+")))),
-                    Type::Atom(Value::Keyword(String::from(":test")))
-                ]
-            })
+            Value::List(
+                List::new()
+                    .prepend(Value::Keyword(String::from(":test")))
+                    .prepend(Value::Symbol(Symbol::from("+")))
+            )
         );
     }
 
@@ -413,14 +407,13 @@ pub mod test {
             .expect("We should be able to parse a single atom");
         assert_eq!(
             ast,
-            Type::List(List {
-                child: vec![
-                    Type::Atom(Value::Symbol(Symbol(String::from("+")))),
-                    Type::Atom(Value::Nil),
-                    Type::Atom(Value::True),
-                    Type::Atom(Value::False)
-                ]
-            })
+            Value::List(
+                List::new()
+                    .prepend(Value::False)
+                    .prepend(Value::True)
+                    .prepend(Value::Nil)
+                    .prepend(Value::Symbol(Symbol::from("+")))
+            )
         );
     }
 
@@ -433,9 +426,7 @@ pub mod test {
             .expect("We should be able to parse a single atom");
         assert_eq!(
             ast,
-            Type::List(List {
-                child: vec![Type::Atom(Value::String(String::from("\"Hello World\"")))]
-            })
+            Value::List(List::new().prepend(Value::String(String::from("\"Hello World\""))))
         );
     }
 
