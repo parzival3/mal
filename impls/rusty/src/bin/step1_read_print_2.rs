@@ -1,4 +1,4 @@
-use mal::mal::*;
+use mal::mal2::*;
 use rustyline::error::ReadlineError;
 use rustyline::Editor;
 

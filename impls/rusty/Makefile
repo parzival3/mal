@@ -1,5 +1,5 @@
 # UPPER_STEPS = step4_if_fn_do step5_tco step6_file step7_quote step8_macros step9_try stepA_mal
-STEPS = step0_repl step1_read_print
+STEPS = step0_repl step1_read_print_2
 
 all: $(STEPS)
 
@@ -16,7 +16,7 @@ mal: stepA_mal
 STEP0_DEPS = Cargo.toml
 
 step0_repl: $(STEP0_DEPS)
-step1_read_print: $(STEP0_DEPS)
+step1_read_print_2: $(STEP0_DEPS)
 
 .PHONY: clean
 

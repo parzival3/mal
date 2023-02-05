@@ -1,4 +1,5 @@
 pub mod mal;
+pub mod mal2;
 pub mod list;
 pub mod types;
 pub mod types2;
