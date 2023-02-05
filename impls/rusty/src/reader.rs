@@ -245,7 +245,10 @@ impl<T: ReaderTrait> Reader<T> {
         let first_arg = self.read_from()?; // TODO maybe this can be improved
         let second_arg = self.read_from()?;
         Ok(Value::List(
-            List::new().prepend(first_arg).prepend(second_arg).prepend(Value::WithMeta),
+            List::new()
+                .prepend(first_arg)
+                .prepend(second_arg)
+                .prepend(Value::WithMeta),
         ))
     }
 

@@ -1,6 +1,6 @@
-pub mod mal;
-pub mod list;
-pub mod types;
-mod reader;
 pub mod env;
 pub mod errors;
+pub mod list;
+pub mod mal;
+mod reader;
+pub mod types;

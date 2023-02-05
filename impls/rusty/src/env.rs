@@ -1,6 +1,6 @@
-use std::{collections::HashMap, rc::Rc, cell::RefCell};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use crate::types::{Value, Symbol};
+use crate::types::{Symbol, Value};
 
 pub type RcEnv = Rc<RefCell<Env>>;
 
@@ -16,12 +16,11 @@ impl Env {
     pub fn new(parent: Option<RcEnv>) -> Self {
         Env {
             parent,
-            entries: HashMap::<Symbol, Value>::new()
+            entries: HashMap::<Symbol, Value>::new(),
         }
     }
 
     pub fn add(&mut self, name: Symbol, value: Value) {
         self.entries.insert(name, value);
     }
-
 }

@@ -18,7 +18,6 @@ impl std::fmt::Display for Symbol {
     }
 }
 
-
 #[derive(Debug, PartialEq)]
 pub enum Value {
     Integer(i64),
@@ -59,15 +58,12 @@ impl std::fmt::Display for Value {
             Value::Array(array) => write!(f, "{}", print_seq(array, "[", "]")),
             Value::List(list) => write!(f, "{}", print_seq(list, "(", ")")),
             Value::Map(map) => write!(f, "{}", print_seq(map, "{", "}")),
-            Value::NativeFun(func) => write!(f, "<nativefunc> {:?}", func)
+            Value::NativeFun(func) => write!(f, "<nativefunc> {:?}", func),
         }
     }
 }
 
 fn print_seq(list: &List<Value>, start: &str, end: &str) -> String {
-    let new_output: Vec<String> = list
-        .iter()
-        .map(|val| val.to_string())
-        .collect();
+    let new_output: Vec<String> = list.iter().map(|val| val.to_string()).collect();
     format!("{}{}{}", start, new_output.join(" "), end)
 }
