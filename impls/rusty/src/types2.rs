@@ -1,4 +1,3 @@
-use std::rc::Rc;
 use crate::list::*;
 
 use crate::{env::RcEnv, errors::RuntimeError};
@@ -57,15 +56,15 @@ impl std::fmt::Display for Value {
             Value::Quote => write!(f, "quote"),
             Value::QuasiQuote => write!(f, "quasiquote"),
             Value::WithMeta => write!(f, "with-meta"),
-            Value::Array(array) => write!(f, "{}", pr_sequence(array, "[", "]")),
-            Value::List(list) => write!(f, "{}", pr_sequence(list, "(", ")")),
-            Value::Map(map) => write!(f, "{}", pr_sequence(map, "{", "}")),
+            Value::Array(array) => write!(f, "{}", print_seq(array, "[", "]")),
+            Value::List(list) => write!(f, "{}", print_seq(list, "(", ")")),
+            Value::Map(map) => write!(f, "{}", print_seq(map, "{", "}")),
             Value::NativeFun(func) => write!(f, "<nativefunc> {:?}", func)
         }
     }
 }
 
-fn pr_sequence(list: &List<Value>, start: &str, end: &str) -> String {
+fn print_seq(list: &List<Value>, start: &str, end: &str) -> String {
     let new_output: Vec<String> = list
         .iter()
         .map(|val| val.to_string())
