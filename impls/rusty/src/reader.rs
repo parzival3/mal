@@ -1,8 +1,6 @@
-use crate::{types::*, errors::TokenizerError};
-use regex::Regex;
 use crate::errors::*;
-
-
+use crate::{errors::TokenizerError, types::*};
+use regex::Regex;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Tokens {

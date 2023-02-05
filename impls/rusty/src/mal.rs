@@ -19,9 +19,8 @@ pub fn eval(ast: TokenizerResult<Type>) -> TokenizerResult<Type> {
 }
 
 pub fn eval_to_change(ast: &Type) -> RuntimeResult<Type> {
-    let mut env = Env::new(None);
     let sum = Type::NativeFun(|env, args| Ok(Type::Atom(Value::Integer(3))));
-    env.add(Symbol::from("+"), sum);
+    //env.add(Symbol::from("+"), sum);
     Ok(Type::Atom(Value::Integer(3)))
 }
 
