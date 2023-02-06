@@ -18,7 +18,7 @@ impl std::fmt::Display for Symbol {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Value {
     Integer(i64),
     Symbol(Symbol),

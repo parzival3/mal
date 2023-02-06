@@ -1,3 +1,4 @@
+use crate::env::RcEnv;
 use crate::errors::*;
 use crate::reader::*;
 use crate::types::*;
@@ -11,6 +12,29 @@ pub fn read(input_string: &str) -> TokenizerResult<Value> {
 
 pub fn eval(ast: TokenizerResult<Value>) -> TokenizerResult<Value> {
     ast
+}
+
+pub fn eval_ast(env: RcEnv, ast: Value) -> RuntimeResult<Value> {
+        let res = match ast {
+            Value::SpliceUnquote => todo!(),
+            Value::Unquote => todo!(),
+            Value::Deref => todo!(),
+            Value::Quote => todo!(),
+            Value::QuasiQuote => todo!(),
+            Value::WithMeta => todo!(),
+            Value::Array(_) => todo!(),
+            Value::List(list) => list.iter().try_fold(List::new(), |acc,
+            Value::Map(_) => todo!(),
+            Value::NativeFun(_) => todo!(),
+            Value::Integer(val) => Value::Integer(val),
+            Value::String(val) => Value::String(val),
+            Value::Nil => Value::Nil,
+            Value::True => Value::True,
+            Value::False => Value::False,
+            Value::Keyword(val) => Value::Keyword(val),
+            Value::Symbol(val) => env.try_borrow()?.get(&val).ok_or_else(|| RuntimeError::ValueNotFound(format!("Symbol {}, is not defined", val.to_string())))?,
+        };
+    Err(RuntimeError::Evaluation)
 }
 
 pub fn print(ast: TokenizerResult<Value>) {

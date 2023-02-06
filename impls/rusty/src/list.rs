@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct List<T> {
     head: Link<T>,
 }

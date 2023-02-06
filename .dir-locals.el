@@ -1,9 +1,5 @@
 ;;; Directory Local Variables
 ;;; For more information see (info "(emacs) Directory Variables")
 
-((rust-mode . ((eglot-workspace-configuration . (:rust-analyzer
-                                                 (:linkedProjects ["/Users/enrico/Git/mal/impls/rusty/Cargo.toml"])
-                                                  :checkOnSave (:command "clippy"))))))
-;; ((rust-mode . ((eglot-workspace-configuration . (:rust-analyzer
-;;                                                  (:linkedProjects ["/home/enrico/Git/mal/impls/rusty/Cargo.toml"])
-;;                                                   :checkOnSave (:command "clippy"))))))
+((rust-mode . ((eval . (setq rusty-workspace-dir "impls/rusty/Cargo.toml"))
+               (eval . (setq eglot-workspace-configuration `(:rust-analyzer (:linkedProjects [,rusty-workspace-dir]) :checkOnSave (:command "clippy")))))))
