@@ -13,7 +13,7 @@ struct Node<T> {
     next: Link<T>,
 }
 
-impl<T> List<T> {
+impl<T: Clone> List<T> {
     pub fn new() -> Self {
         List { head: None }
     }
@@ -35,6 +35,15 @@ impl<T> List<T> {
 
     pub fn head(&self) -> Option<&T> {
         self.head.as_ref().map(|node| &node.elem)
+    }
+
+    pub fn reverse(&self) -> List<T> {
+        let mut iter = self.iter();
+        let mut list = List::new();
+        while let Some(val) = iter.next() {
+            list = list.prepend((*val).clone());
+        }
+        return list;
     }
 
     pub fn iter(&self) -> Iter<'_, T> {
