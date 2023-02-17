@@ -42,7 +42,7 @@ impl core::fmt::Display for TokenizerError {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum RuntimeError {
-    Evaluation,
+    Evaluation(String),
     EnviromentBorrowDispute(String), // Trying accessing the enviroment from two part of the code
     ValueNotFound(String),
 }
@@ -50,7 +50,7 @@ impl std::error::Error for RuntimeError {}
 impl core::fmt::Display for RuntimeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            RuntimeError::Evaluation => write!(f, "Evaluation Error"),
+            RuntimeError::Evaluation(e) => write!(f, "Evaluation Error {}", e),
             RuntimeError::EnviromentBorrowDispute(val) => {
                 write!(f, "EnviromentDispute Error {}", val)
             }

@@ -14,8 +14,14 @@ struct Node<T> {
 }
 
 impl<T: Clone> List<T> {
+    pub const NIL: Self = List { head: None };
+
     pub fn new() -> Self {
         List { head: None }
+    }
+
+    pub fn empty(&self) -> bool {
+        self.head.is_none()
     }
 
     pub fn prepend(&self, elem: T) -> List<T> {

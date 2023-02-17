@@ -1,4 +1,4 @@
-use crate::env::RcEnv;
+use crate::env::*;
 use crate::errors::*;
 use crate::list::List;
 use crate::reader::*;
@@ -11,71 +11,66 @@ pub fn read(input_string: &str) -> TokenizerResult<Value> {
     reader.read_from()
 }
 
-pub fn eval(ast: TokenizerResult<Value>) -> TokenizerResult<Value> {
-    ast
-}
-
-pub fn eval_new(ast: &Value) -> RuntimeResult<Value> {
-    Ok(Value::Integer(10))
-}
-
-trait LogRuntimeError<T> {
-    fn rerr_to_option(&self) -> Option<T>;
-}
-
-impl<T: Clone> LogRuntimeError<T> for RuntimeResult<T> {
-    fn rerr_to_option(&self) -> Option<T> {
-        match self {
-            Ok(val) => Some((*val).clone()),
-            Err(e) => {
-                println!("Runtime error {}", e);
-                None
-            },
+pub fn eval(env: &RcEnv, ast: Value) -> RuntimeResult<Value> {
+    match ast {
+        Value::List(list) if list != List::NIL => {
+            let mut evaluated_list = list
+                .iter()
+                .map(|val| eval_ast(env, val.clone()))
+                .collect::<Result<Vec<Value>, RuntimeError>>()?
+                .to_owned();
+            let args = evaluated_list.drain(1..).collect();
+            let fun = evaluated_list;
+            call_function(
+                env,
+                fun.into_iter()
+                    .next()
+                    .ok_or_else(|| RuntimeError::Evaluation(String::from("Couldn't get function")))?,
+                args,
+            )
         }
+        _ => eval_ast(env, ast),
     }
 }
 
-fn eval_list(env: RcEnv, list: List<Value>) -> RuntimeResult<Value> {
-    let list_evaluated = list.iter().try_fold(List::new(), |acc, val| {
-        eval_new(val).rerr_to_option().and_then(|val| Some(acc.prepend(val)))
-    }).ok_or_else(|| RuntimeError::Evaluation)?;
-    Ok(Value::List(list_evaluated.reverse()))
+fn call_function(env: &RcEnv, func: Value, args: Vec<Value>) -> RuntimeResult<Value> {
+    if let Value::NativeFun(native_func) = func {
+        return native_func(env.clone(), args);
+    }
+    Err(RuntimeError::Evaluation(String::from("Not a Function")))
 }
 
-fn eval_symbol(env: RcEnv, val: Symbol) -> RuntimeResult<Value> {
-   Ok(env.try_borrow()?.get(&val).ok_or_else(|| RuntimeError::ValueNotFound(format!("Symbol {}, is not defined", val.to_string())))?)
+fn eval_symbol(env: &RcEnv, val: Symbol) -> RuntimeResult<Value> {
+    Ok(env.try_borrow()?.get(&val).ok_or_else(|| {
+        RuntimeError::ValueNotFound(format!("Symbol {}, is not defined", val.to_string()))
+    })?)
 }
 
-pub fn eval_ast(env: RcEnv, ast: Value) -> RuntimeResult<Value> {
-        let res = match ast {
-            Value::SpliceUnquote => todo!(),
-            Value::Unquote => todo!(),
-            Value::Deref => todo!(),
-            Value::Quote => todo!(),
-            Value::QuasiQuote => todo!(),
-            Value::WithMeta => todo!(),
-            Value::Array(_) => todo!(),
-            Value::List(list) => eval_list(env, list),
-            Value::Map(_) => todo!(),
-            Value::NativeFun(_) => todo!(),
-            Value::Integer(val) => Ok(Value::Integer(val)),
-            Value::String(val) => Ok(Value::String(val)),
-            Value::Nil => Ok(Value::Nil),
-            Value::True => Ok(Value::True),
-            Value::False => Ok(Value::False),
-            Value::Keyword(val) => Ok(Value::Keyword(val)),
-            Value::Symbol(val) => eval_symbol(env, val),
-        };
-    Err(RuntimeError::Evaluation)
+pub fn eval_ast(env: &RcEnv, ast: Value) -> RuntimeResult<Value> {
+    match ast {
+        Value::List(list) => list
+            .iter()
+            .map(|val| eval(env, val.clone()))
+            .collect::<Result<List<Value>, RuntimeError>>()
+            .map(Value::List),
+        Value::Symbol(val) => eval_symbol(env, val),
+        _ => Ok(ast.clone()),
+    }
 }
 
-pub fn print(ast: TokenizerResult<Value>) {
+pub fn print(ast: RuntimeResult<Value>) {
     match ast {
         Ok(ast) => println!("{}", ast.to_string()),
-        _ => println!("(EOF|end of input|unbalanced)"), // TODO change this
+        Err(e) => println!("(EOF|end of input|unbalanced) {e}"), // TODO change this
     }
 }
 
 pub fn rep(input_string: &str) {
-    print(eval(read(input_string)));
+    let env = default_environment();
+    match read(input_string)
+    {
+        Ok(parsed_input) => print(eval(&env, parsed_input)),
+        Err(e) => println!("(EOF|end of input|unbalanced) {}", e)
+    }
+
 }

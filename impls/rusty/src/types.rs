@@ -1,8 +1,11 @@
+use std::ops::*;
 use crate::list::*;
 
 use crate::{env::RcEnv, errors::RuntimeError};
 
 pub type NativeFun = fn(env: RcEnv, args: Vec<Value>) -> Result<Value, RuntimeError>;
+
+pub type IntType = i64;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Symbol(pub String);
@@ -20,7 +23,7 @@ impl std::fmt::Display for Symbol {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Value {
-    Integer(i64),
+    Integer(IntType),
     Symbol(Symbol),
     Nil,
     True,
@@ -66,4 +69,126 @@ impl std::fmt::Display for Value {
 fn print_seq(list: &List<Value>, start: &str, end: &str) -> String {
     let new_output: Vec<String> = list.iter().map(|val| val.to_string()).collect();
     format!("{}{}{}", start, new_output.join(" "), end)
+}
+
+impl FromIterator<Value> for List<Value> {
+    fn from_iter<T: IntoIterator<Item = Value>>(iter: T) -> Self {
+        let iter = iter.into_iter();
+        let mut list = List::new();
+        for val in iter {
+            list = list.prepend(val);
+        }
+
+        return list.reverse();
+    }
+}
+
+
+impl Add<&Value> for &Value {
+    type Output = Result<Value, ()>;
+
+    fn add(self, other: &Value) -> Self::Output {
+        match (self, other) {
+            // same type
+            (Value::Integer(this), Value::Integer(other)) => Ok(Value::from(this + other)),
+            (Value::String(this), Value::String(other)) => Ok(Value::from(this.clone() + other)),
+
+            // non-string + string
+            (Value::String(this), Value::Integer(other)) => {
+                Ok(Value::from(this.clone() + &other.to_string()))
+            }
+            (Value::Integer(this), Value::String(other)) => Ok(Value::from(this.to_string() + other)),
+
+            _ => Err(()),
+        }
+    }
+}
+
+impl Add<Value> for Value {
+    type Output = Result<Value, ()>;
+
+    fn add(self, other: Value) -> Self::Output {
+        &self + &other
+    }
+}
+
+impl Sub<&Value> for &Value {
+    type Output = Result<Value, RuntimeError>;
+
+    fn sub(self, other: &Value) -> Self::Output {
+        match (self, other) {
+            (Value::Integer(this), Value::Integer(other)) => Ok(Value::from(this - other)),
+            (a, b) => Err(RuntimeError::Evaluation(format!("Can't subtract {a} with {b}"))),
+        }
+    }
+}
+
+impl Sub<Value> for Value {
+    type Output = Result<Value, RuntimeError>;
+
+    fn sub(self, other: Value) -> Self::Output {
+        &self - &other
+    }
+}
+
+impl Mul<&Value> for &Value {
+    type Output = Result<Value, RuntimeError>;
+
+    fn mul(self, other: &Value) -> Self::Output {
+        match (self, other) {
+            (Value::Integer(this), Value::Integer(other)) => Ok(Value::from(this * other)),
+            (a, b) => Err(RuntimeError::Evaluation(format!("Can't multiply {a} with {b}"))),
+        }
+    }
+}
+
+impl Mul<Value> for Value {
+    type Output = Result<Value, RuntimeError>;
+
+    fn mul(self, other: Value) -> Self::Output {
+        &self * &other
+    }
+}
+
+impl Div<&Value> for &Value {
+    type Output = Result<Value, RuntimeError>;
+
+    fn div(self, other: &Value) -> Self::Output {
+        match (self, other) {
+            (Value::Integer(this), Value::Integer(other)) => Ok(Value::from(this / other)),
+            (a, b) => Err(RuntimeError::Evaluation(format!("Can't divide {a} with {b}"))),
+        }
+    }
+}
+
+impl Div<Value> for Value {
+    type Output = Result<Value, RuntimeError>;
+
+    fn div(self, other: Value) -> Self::Output {
+        &self / &other
+    }
+}
+
+impl From<IntType> for Value {
+    fn from(i: IntType) -> Self {
+        Value::Integer(i)
+    }
+}
+
+impl From<String> for Value {
+    fn from(i: String) -> Self {
+        Value::String(i)
+    }
+}
+
+impl From<Symbol> for Value {
+    fn from(i: Symbol) -> Self {
+        Value::Symbol(i)
+    }
+}
+
+impl From<List<Value>> for Value {
+    fn from(i: List<Value>) -> Self {
+        Value::List(i)
+    }
 }
