@@ -1,7 +1,7 @@
-use std::ops::*;
 use crate::list::*;
+use std::ops::*;
 
-use crate::{env::RcEnv, errors::RuntimeError};
+use crate::{env::RcEnv, errors::RuntimeError, errors::RuntimeResult};
 
 pub type NativeFun = fn(env: RcEnv, args: Vec<Value>) -> Result<Value, RuntimeError>;
 
@@ -83,9 +83,8 @@ impl FromIterator<Value> for List<Value> {
     }
 }
 
-
 impl Add<&Value> for &Value {
-    type Output = Result<Value, ()>;
+    type Output = Result<Value, RuntimeError>;
 
     fn add(self, other: &Value) -> Self::Output {
         match (self, other) {
@@ -97,15 +96,19 @@ impl Add<&Value> for &Value {
             (Value::String(this), Value::Integer(other)) => {
                 Ok(Value::from(this.clone() + &other.to_string()))
             }
-            (Value::Integer(this), Value::String(other)) => Ok(Value::from(this.to_string() + other)),
+            (Value::Integer(this), Value::String(other)) => {
+                Ok(Value::from(this.to_string() + other))
+            }
 
-            _ => Err(()),
+            (a, b) => Err(RuntimeError::Evaluation(format!(
+                "Can't add {a} with {b}"
+            ))),
         }
     }
 }
 
 impl Add<Value> for Value {
-    type Output = Result<Value, ()>;
+    type Output = Result<Value, RuntimeError>;
 
     fn add(self, other: Value) -> Self::Output {
         &self + &other
@@ -118,7 +121,9 @@ impl Sub<&Value> for &Value {
     fn sub(self, other: &Value) -> Self::Output {
         match (self, other) {
             (Value::Integer(this), Value::Integer(other)) => Ok(Value::from(this - other)),
-            (a, b) => Err(RuntimeError::Evaluation(format!("Can't subtract {a} with {b}"))),
+            (a, b) => Err(RuntimeError::Evaluation(format!(
+                "Can't subtract {a} with {b}"
+            ))),
         }
     }
 }
@@ -137,7 +142,9 @@ impl Mul<&Value> for &Value {
     fn mul(self, other: &Value) -> Self::Output {
         match (self, other) {
             (Value::Integer(this), Value::Integer(other)) => Ok(Value::from(this * other)),
-            (a, b) => Err(RuntimeError::Evaluation(format!("Can't multiply {a} with {b}"))),
+            (a, b) => Err(RuntimeError::Evaluation(format!(
+                "Can't multiply {a} with {b}"
+            ))),
         }
     }
 }
@@ -156,7 +163,9 @@ impl Div<&Value> for &Value {
     fn div(self, other: &Value) -> Self::Output {
         match (self, other) {
             (Value::Integer(this), Value::Integer(other)) => Ok(Value::from(this / other)),
-            (a, b) => Err(RuntimeError::Evaluation(format!("Can't divide {a} with {b}"))),
+            (a, b) => Err(RuntimeError::Evaluation(format!(
+                "Can't divide {a} with {b}"
+            ))),
         }
     }
 }
@@ -191,4 +200,16 @@ impl From<List<Value>> for Value {
     fn from(i: List<Value>) -> Self {
         Value::List(i)
     }
+}
+
+pub fn arithmetic_function<F: FnMut(Value, Value) -> Result<Value, RuntimeError>>(
+    args: Vec<Value>,
+    function: F,
+) -> RuntimeResult<Value> {
+    let first = args.first().ok_or_else(|| {
+        RuntimeError::Evaluation(String::from(
+            "arithmetic_function needs at least 2 arguments 0 provided",
+        ))
+    })?.clone();
+    args.into_iter().skip(1).try_fold(first, function)
 }

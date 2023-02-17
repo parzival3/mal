@@ -1,9 +1,6 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use crate::{
-    errors::RuntimeError,
-    types::{Symbol, Value},
-};
+use crate::types::{arithmetic_function, Symbol, Value};
 
 pub type RcEnv = Rc<RefCell<Env>>;
 
@@ -44,59 +41,22 @@ pub fn default_environment() -> RcEnv {
     let mut env = Env::new(None);
     env.add(
         Symbol::from("+"),
-        Value::NativeFun(|_, args| args.into_iter().reduce(|acc, e| acc + e))
+        Value::NativeFun(|_, args| arithmetic_function(args, |acc, e| acc + e)),
     );
 
     env.add(
         Symbol::from("-"),
-        Value::NativeFun(|_, args| {
-            args.into_iter()
-                .try_fold(0, |acc, value| {
-                    if let Value::Integer(integer) = value {
-                        Ok(integer - acc)
-                    } else {
-                        Err(RuntimeError::Evaluation(format!(
-                            "{value} is not an integer"
-                        )))
-                    }
-                })
-                .map(Value::Integer)
-        }),
+        Value::NativeFun(|_, args| arithmetic_function(args, |acc, e| acc - e)),
     );
 
     env.add(
         Symbol::from("*"),
-        Value::NativeFun(|_, args| {
-            args.into_iter()
-                .try_fold(0, |acc, value| {
-                    if let Value::Integer(integer) = value {
-                        Ok(integer * acc)
-                    } else {
-                        Err(RuntimeError::Evaluation(format!(
-                            "{value} is not an integer"
-                        )))
-                    }
-                })
-                .map(Value::Integer)
-        }),
+        Value::NativeFun(|_, args| arithmetic_function(args, |acc, e| acc * e)),
     );
 
     env.add(
         Symbol::from("/"),
-        Value::NativeFun(|_, args| {
-            let first = args.first().ok_or_else(|| RuntimeError::Evaluation(String::from("Division requires two arguments")))?;
-            args.into_iter().skip(1)
-                .try_fold(first, |acc, value| {
-                    if let Value::Integer(integer) = value {
-                        Ok(integer / acc)
-                    } else {
-                        Err(RuntimeError::Evaluation(format!(
-                            "{value} is not an integer"
-                        )))
-                    }
-                })
-                .map(Value::Integer)
-        }),
+        Value::NativeFun(|_, args| arithmetic_function(args, |acc, e| acc / e)),
     );
     return Rc::new(RefCell::new(env));
 }
