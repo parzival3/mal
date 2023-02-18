@@ -46,19 +46,12 @@ fn eval_symbol(env: &RcEnv, val: Symbol) -> RuntimeResult<Value> {
 }
 
 /// Eval each of the element of a list separatedly and return a vector of values
+/// Most likely this is not correct, where we are mixing rust vector and lisp list.
 fn eval_list_args(env: &RcEnv, args: List<Value>) -> Result<Vec<Value>, RuntimeError> {
     args.iter()
         .map(|val| eval_ast(env, val.clone()))
         .collect::<Result<Vec<Value>, RuntimeError>>()
         .to_owned()
-}
-
-/// Eval the entire list and return a new list wich is the result of the evaluation
-fn eval_list(env: &RcEnv, list: List<Value>) -> RuntimeResult<Value> {
-    list.iter()
-        .map(|val| eval(env, val.clone()))
-        .collect::<Result<List<Value>, RuntimeError>>()
-        .map(Value::List)
 }
 
 /// Eval the entire list and return a new list wich is the result of the evaluation
@@ -69,11 +62,19 @@ fn eval_array(env: &RcEnv, list: List<Value>) -> RuntimeResult<Value> {
         .map(Value::Array)
 }
 
+fn eval_map(env: &RcEnv, list: List<Value>) -> RuntimeResult<Value> {
+    list.iter()
+        .map(|val| eval(env, val.clone()))
+        .collect::<Result<List<Value>, RuntimeError>>()
+        .map(Value::Map)
+}
+
 pub fn eval_ast(env: &RcEnv, ast: Value) -> RuntimeResult<Value> {
     match ast {
-        Value::List(list) => eval_list(env, list),
+        Value::List(ref x) if *x != List::NIL => eval(env, ast),
         Value::Symbol(val) => eval_symbol(env, val),
-        Value::Array(val) => eval_array(env, val),
+        Value::Array(array) => eval_array(env, array),
+        Value::Map(map) => eval_map(env, map),
         _ => Ok(ast.clone()),
     }
 }
@@ -91,4 +92,105 @@ pub fn rep(input_string: &str) {
         Ok(parsed_input) => print(eval(&env, parsed_input)),
         Err(e) => println!("(EOF|end of input|unbalanced): {e}"),
     }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn inner_list() {
+        let env = default_environment();
+        let expr = "(+ 1 2 (+ 1 4))";
+        assert_eq!(eval(&env, read(expr).unwrap()).unwrap(), Value::Integer(8));
+
+        let expr = "(- (+ 5 (* 2 3)) 3)";
+        assert_eq!(eval(&env, read(expr).unwrap()).unwrap(), Value::Integer(8));
+    }
+
+    #[test]
+    fn mal_tests_part_2() {
+        let env = default_environment();
+        let expr = "(+ 1 2)";
+        assert_eq!(eval(&env, read(expr).unwrap()).unwrap(), Value::Integer(3));
+
+        let expr = "(+ 5 (* 2 3))";
+        assert_eq!(eval(&env, read(expr).unwrap()).unwrap(), Value::Integer(11));
+
+        let expr = "(- (+ 5 (* 2 3)) 3)";
+        assert_eq!(eval(&env, read(expr).unwrap()).unwrap(), Value::Integer(8));
+
+        let expr = "(/ (- (+ 5 (* 2 3)) 3) 4)";
+        assert_eq!(eval(&env, read(expr).unwrap()).unwrap(), Value::Integer(2));
+
+        let expr = "(/ (- (+ 515 (* 87 311)) 302) 27)";
+        assert_eq!(eval(&env, read(expr).unwrap()).unwrap(), Value::Integer(1010));
+
+        let expr = "(* -3 6)";
+        assert_eq!(eval(&env, read(expr).unwrap()).unwrap(), Value::Integer(-18));
+
+        let expr = "(/ (- (+ 515 (* -87 311)) 296) 27)";
+        assert_eq!(eval(&env, read(expr).unwrap()).unwrap(), Value::Integer(-994));
+
+        let expr = "()";
+        assert_eq!(eval(&env, read(expr).unwrap()).unwrap(), Value::List(List::new()));
+
+        let mut array = List::new();
+        array = array.prepend(Value::Integer(1));
+        array = array.prepend(Value::Integer(2));
+        array = array.prepend(Value::Integer(3));
+        array = array.reverse();
+
+        let expr = "[1 2 (+ 1 2)]'";
+        assert_eq!(eval(&env, read(expr).unwrap()).unwrap(), Value::Array(array));
+
+        let mut map = List::new();
+        map = map.prepend(Value::String(String::from("\"a\"")));
+        map = map.prepend(Value::Integer(15));
+        map = map.reverse();
+
+        let expr = "{\"a\" (+ 7 8)}'";
+        assert_eq!(eval(&env, read(expr).unwrap()).unwrap(), Value::Map(map));
+
+        let mut map = List::new();
+        map = map.prepend(Value::Keyword(String::from(":a")));
+        map = map.prepend(Value::Integer(15));
+        map = map.reverse();
+
+        let expr = "{:a (+ 7 8)}'";
+        assert_eq!(eval(&env, read(expr).unwrap()).unwrap(), Value::Map(map));
+
+
+        let map = List::new();
+        let expr = "{}'";
+        assert_eq!(eval(&env, read(expr).unwrap()).unwrap(), Value::Map(map));
+
+
+        let array = List::new();
+
+        let expr = "[]'";
+        assert_eq!(eval(&env, read(expr).unwrap()).unwrap(), Value::Array(array));
+    }
+
+
+// TEST: '(+ 1 2)' -> ['',3] -> SUCCESS
+// TEST: '(+ 5 (* 2 3))' -> ['',11] -> SUCCESS
+// TEST: '(- (+ 5 (* 2 3)) 3)' -> ['',8] -> SUCCESS
+// TEST: '(/ (- (+ 5 (* 2 3)) 3) 4)' -> ['',2] -> SUCCESS
+// TEST: '(/ (- (+ 515 (* 87 311)) 302) 27)' -> ['',1010] -> SUCCESS
+// TEST: '(* -3 6)' -> ['',-18] -> SUCCESS
+// TEST: '(/ (- (+ 515 (* -87 311)) 296) 27)' -> ['',-994] -> SUCCESS
+// TEST: '(abc 1 2 3)' -> ['.+',] -> SUCCESS
+// Testing empty list
+// TEST: '()' -> ['',()] -> SUCCESS
+//
+// -------- Deferrable Functionality --------
+// Testing evaluation within collection literals
+// TEST: '[1 2 (+ 1 2)]' -> ['',[1 2 3]] -> SUCCESS
+// TEST: '{"a" (+ 7 8)}' -> ['',{"a" 15}] -> SUCCESS
+// TEST: '{:a (+ 7 8)}' -> ['',{:a 15}] -> SUCCESS
+// Check that evaluation hasn't broken empty collections
+// TEST: '[]' -> ['',[]] -> SUCCESS
+// TEST: '{}' -> ['',{}] -> SUCCESS
+
 }
