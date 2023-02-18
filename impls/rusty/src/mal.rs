@@ -171,26 +171,4 @@ mod test {
         let expr = "[]'";
         assert_eq!(eval(&env, read(expr).unwrap()).unwrap(), Value::Array(array));
     }
-
-
-// TEST: '(+ 1 2)' -> ['',3] -> SUCCESS
-// TEST: '(+ 5 (* 2 3))' -> ['',11] -> SUCCESS
-// TEST: '(- (+ 5 (* 2 3)) 3)' -> ['',8] -> SUCCESS
-// TEST: '(/ (- (+ 5 (* 2 3)) 3) 4)' -> ['',2] -> SUCCESS
-// TEST: '(/ (- (+ 515 (* 87 311)) 302) 27)' -> ['',1010] -> SUCCESS
-// TEST: '(* -3 6)' -> ['',-18] -> SUCCESS
-// TEST: '(/ (- (+ 515 (* -87 311)) 296) 27)' -> ['',-994] -> SUCCESS
-// TEST: '(abc 1 2 3)' -> ['.+',] -> SUCCESS
-// Testing empty list
-// TEST: '()' -> ['',()] -> SUCCESS
-//
-// -------- Deferrable Functionality --------
-// Testing evaluation within collection literals
-// TEST: '[1 2 (+ 1 2)]' -> ['',[1 2 3]] -> SUCCESS
-// TEST: '{"a" (+ 7 8)}' -> ['',{"a" 15}] -> SUCCESS
-// TEST: '{:a (+ 7 8)}' -> ['',{:a 15}] -> SUCCESS
-// Check that evaluation hasn't broken empty collections
-// TEST: '[]' -> ['',[]] -> SUCCESS
-// TEST: '{}' -> ['',{}] -> SUCCESS
-
 }
