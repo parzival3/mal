@@ -44,29 +44,31 @@ fn eval_let(env: &RcEnv, list: List<Value>) -> RuntimeResult<Value> {
         )?
         .clone();
 
+    let mut list_iter = first.expect_list_arr()?.iter();
     loop {
-        let mut list_iter = first.expect_list_arr()?.iter();
         let symbol_name = list_iter.next();
         let body = list_iter.next();
         match (symbol_name, body) {
             (None, None) => break,
             (None, Some(body)) => {
-                return Err(eval_err(
-                    &format!("let form has a body but not a definition, body is '{body}'"),
-                ))
+                return Err(eval_err(&format!(
+                    "let form has a body but not a definition, body is '{body}'"
+                )))
             }
             (Some(def), None) => {
-                return Err(eval_err(
-                    &format!("let form has a definition but not a body, definition is '{def}'"),
-                ))
+                return Err(eval_err(&format!(
+                    "let form has a definition but not a body, definition is '{def}'"
+                )))
             }
             (Some(Value::Symbol(name)), Some(body)) => {
                 let evaluated = eval(&new_env, body.clone())?;
                 add_to_env(&new_env, name.clone(), evaluated)?;
             }
-            (Some(value), Some(_)) => return Err(eval_err(
-                    &format!("let form needs a symbol as definition, got '{value}'"),
-                ))
+            (Some(value), Some(_)) => {
+                return Err(eval_err(&format!(
+                    "let form needs a symbol as definition, got '{value}'"
+                )))
+            }
         }
     }
 
@@ -128,7 +130,7 @@ fn get_symbol(env: &RcEnv, val: Symbol) -> RuntimeResult<Value> {
     Ok(env
         .try_borrow()?
         .get(&val)
-        .ok_or_else(|| RuntimeError::ValueNotFound(format!("Symbol {val}, is not defined")))?)
+        .ok_or_else(|| RuntimeError::ValueNotFound(format!("Symbol '{val}' not found")))?)
 }
 
 /// Eval each of the element of a list separatedly and return a vector of values
@@ -172,8 +174,7 @@ pub fn print(ast: RuntimeResult<Value>) {
     }
 }
 
-pub fn rep(input_string: &str) {
-    let env = default_environment();
+pub fn rep(env: &RcEnv, input_string: &str) {
     match read(input_string) {
         Ok(parsed_input) => print(eval(&env, parsed_input)),
         Err(e) => println!("(EOF|end of input|unbalanced): {e}"),

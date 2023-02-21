@@ -1,3 +1,4 @@
+use mal::env::default_environment;
 use mal::mal::*;
 use std::io;
 use std::io::prelude::*;
@@ -19,9 +20,10 @@ fn read_input(user_query: &str) -> Option<String> {
 }
 
 fn main() {
+    let env = default_environment();
     loop {
         match read_input("user> ") {
-            Some(input_string) => rep(&input_string),
+            Some(input_string) => rep(&env, &input_string),
             None => return,
         }
     }
