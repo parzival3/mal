@@ -52,6 +52,14 @@ impl<T: Clone> List<T> {
         return list;
     }
 
+    pub fn car_n<E: Clone>(&self, index: usize, error: E) -> Result<&T, E> {
+        self.iter().skip(index).next().ok_or_else(|| error)
+    }
+
+    pub fn car<E: Clone>(&self, error: E) -> Result<&T, E> {
+        self.car_n(0, error)
+    }
+
     pub fn iter(&self) -> Iter<'_, T> {
         Iter {
             next: self.head.as_deref(),

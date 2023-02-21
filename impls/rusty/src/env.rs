@@ -37,6 +37,10 @@ impl Env {
     }
 }
 
+pub fn new_env(env: RcEnv) -> RcEnv {
+    RcEnv::new(RefCell::new(Env::new(Some(env.clone()))))
+}
+
 pub fn default_environment() -> RcEnv {
     let mut env = Env::new(None);
     env.add(

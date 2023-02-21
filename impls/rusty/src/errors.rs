@@ -1,4 +1,4 @@
-use std::cell::BorrowError;
+use std::cell::{BorrowError, BorrowMutError};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenizerError {
@@ -61,6 +61,12 @@ impl core::fmt::Display for RuntimeError {
 
 impl From<BorrowError> for RuntimeError {
     fn from(e: BorrowError) -> Self {
+        RuntimeError::EnviromentBorrowDispute(e.to_string())
+    }
+}
+
+impl From<BorrowMutError> for RuntimeError {
+    fn from(e: BorrowMutError) -> Self {
         RuntimeError::EnviromentBorrowDispute(e.to_string())
     }
 }

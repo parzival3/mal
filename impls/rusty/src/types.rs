@@ -42,6 +42,22 @@ pub enum Value {
     NativeFun(NativeFun),
 }
 
+impl Value {
+    pub fn expect_list(&self) -> RuntimeResult<&List<Value>> {
+        match self {
+            Value::List(list) => Ok(list),
+            val => Err(RuntimeError::Evaluation(format!("Value '{val}' is not a list")))
+        }
+    }
+
+    pub fn expect_symbol(&self) -> RuntimeResult<&Symbol> {
+        match self {
+            Value::Symbol(symbol) => Ok(symbol),
+            val => Err(RuntimeError::Evaluation(format!("Value '{val}' is not a symbol")))
+        }
+    }
+}
+
 impl std::fmt::Display for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
