@@ -22,7 +22,7 @@ fn eval_list(env: &RcEnv, list: List<Value>) -> RuntimeResult<Value> {
     let first = list.iter().next().unwrap().clone(); // this is safe because we check if the list is empty above
     match first {
         Value::Symbol(symb) if symb == Symbol::from("def!") => eval_definition(env, list),
-        Value::Symbol(symb) if symb == Symbol::from("let") => eval_let(env, list),
+        Value::Symbol(symb) if symb == Symbol::from("let*") => eval_let(env, list),
         _ => eval_function(env, list),
     }
 }
@@ -44,20 +44,32 @@ fn eval_let(env: &RcEnv, list: List<Value>) -> RuntimeResult<Value> {
         )?
         .clone();
 
-    let mut list_iter = first.expect_list()?.iter();
-    while let Some(val) = list_iter.next() {
-        let def = val.expect_list()?;
-        let symbol_name = def.car(eval_err(
-            "There must be at least a symbol and definition in the let binding, none given",
-        ))?;
-        let name = symbol_name.expect_symbol()?;
-        let body = def.car_n(
-            1,
-            eval_err("There must be a definition body for symbol {name}"),
-        )?;
-        let evaluated = eval(&new_env, body.clone())?;
-        add_to_env(&new_env, name.clone(), evaluated)?;
+    loop {
+        let mut list_iter = first.expect_list_arr()?.iter();
+        let symbol_name = list_iter.next();
+        let body = list_iter.next();
+        match (symbol_name, body) {
+            (None, None) => break,
+            (None, Some(body)) => {
+                return Err(eval_err(
+                    &format!("let form has a body but not a definition, body is '{body}'"),
+                ))
+            }
+            (Some(def), None) => {
+                return Err(eval_err(
+                    &format!("let form has a definition but not a body, definition is '{def}'"),
+                ))
+            }
+            (Some(Value::Symbol(name)), Some(body)) => {
+                let evaluated = eval(&new_env, body.clone())?;
+                add_to_env(&new_env, name.clone(), evaluated)?;
+            }
+            (Some(value), Some(_)) => return Err(eval_err(
+                    &format!("let form needs a symbol as definition, got '{value}'"),
+                ))
+        }
     }
+
     let body = list.car_n(
         2,
         eval_err(&format!(
@@ -271,7 +283,88 @@ mod test {
         let expr = "(+ (def! a 2) (def! b 3))";
         assert_eq!(eval(&env, read(expr).unwrap()).unwrap(), Value::Integer(5));
 
-        let expr = "(let ((a 2) (b 3)) (+ a b))";
-        assert_eq!(eval(&env, read(expr).unwrap()).unwrap(), Value::Integer(5));
+        let expr = "(+ 1 2)";
+        assert_eq!(eval(&env, read(expr).unwrap()).unwrap(), Value::Integer(3));
+
+        let expr = "(def! x 3)";
+        assert_eq!(eval(&env, read(expr).unwrap()).unwrap(), Value::Integer(3));
+
+        let expr = "(def! x 4)";
+        assert_eq!(eval(&env, read(expr).unwrap()).unwrap(), Value::Integer(4));
+
+        let expr = "(def! y (+ 1 7))";
+        assert_eq!(eval(&env, read(expr).unwrap()).unwrap(), Value::Integer(8));
+
+        let expr = "(def! mynum 111)";
+        assert_eq!(
+            eval(&env, read(expr).unwrap()).unwrap(),
+            Value::Integer(111)
+        );
+
+        let expr = "(def! MYNUM 222)";
+        assert_eq!(
+            eval(&env, read(expr).unwrap()).unwrap(),
+            Value::Integer(222)
+        );
+
+        let expr = "MYNUM"; // it should be tested after mynum is defined
+        assert_eq!(
+            eval(&env, read(expr).unwrap()).unwrap(),
+            Value::Integer(222)
+        );
+
+        let expr = "mynum";
+        assert_eq!(
+            eval(&env, read(expr).unwrap()).unwrap(),
+            Value::Integer(111)
+        );
+
+        let expr = "(abc 1 2 3)";
+        assert!(eval(&env, read(expr).unwrap()).is_err());
+
+        let expr = "(def! w 123)";
+        assert_eq!(
+            eval(&env, read(expr).unwrap()).unwrap(),
+            Value::Integer(123)
+        );
+
+        let expr = "(def! w (abc))";
+        assert!(eval(&env, read(expr).unwrap()).is_err());
+
+        let expr = "w";
+        assert_eq!(
+            eval(&env, read(expr).unwrap()).unwrap(),
+            Value::Integer(123)
+        );
+
+        let expr = "(let* (z 9) z)";
+        assert_eq!(eval(&env, read(expr).unwrap()).unwrap(), Value::Integer(9));
+
+        let expr = "(let* (x 9) x)";
+        assert_eq!(eval(&env, read(expr).unwrap()).unwrap(), Value::Integer(9));
+
+        let expr = "(let* (z (+ 2 3)) (+ 1 z))";
+        assert_eq!(eval(&env, read(expr).unwrap()).unwrap(), Value::Integer(6));
+
+        let expr = "(let* (p (+ 2 3) q (+ 2 p)) (+ p q))";
+        assert_eq!(eval(&env, read(expr).unwrap()).unwrap(), Value::Integer(12));
+
+        let expr = "(let* (p (+ 2 3) q (+ 2 p)) (+ p q))";
+        assert_eq!(eval(&env, read(expr).unwrap()).unwrap(), Value::Integer(12));
+
+        let expr = "(def! y (let* (z 7) z))";
+        assert_eq!(eval(&env, read(expr).unwrap()).unwrap(), Value::Integer(7));
+
+        let expr = "(def! a 4)";
+        assert_eq!(eval(&env, read(expr).unwrap()).unwrap(), Value::Integer(4));
+
+        let expr = "(let* (q 9) q)";
+        assert_eq!(eval(&env, read(expr).unwrap()).unwrap(), Value::Integer(9));
+
+        let expr = "(let* (q 9) a)";
+        assert_eq!(eval(&env, read(expr).unwrap()).unwrap(), Value::Integer(4));
+
+        let expr = "(let* (z 2) (let* (q 9) a))";
+        assert_eq!(eval(&env, read(expr).unwrap()).unwrap(), Value::Integer(4));
     }
 }

@@ -56,6 +56,14 @@ impl Value {
             val => Err(RuntimeError::Evaluation(format!("Value '{val}' is not a symbol")))
         }
     }
+
+    pub fn expect_list_arr(&self) -> RuntimeResult<&List<Value>> {
+        match self {
+            Value::List(list) => Ok(list),
+            Value::Array(array) => Ok(array),
+            val => Err(RuntimeError::Evaluation(format!("Value '{val}' is not a list")))
+        }
+    }
 }
 
 impl std::fmt::Display for Value {
