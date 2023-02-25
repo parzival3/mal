@@ -73,3 +73,8 @@ impl From<BorrowMutError> for RuntimeError {
 
 pub type TokenizerResult<T> = std::result::Result<T, TokenizerError>;
 pub type RuntimeResult<T> = std::result::Result<T, RuntimeError>;
+
+
+pub fn eval_err(input: &str) -> RuntimeError {
+    RuntimeError::Evaluation(String::from(input))
+}

@@ -69,3 +69,8 @@ ns = {'=:        equal?,
 
       'empty?:   empty?,
       'count:    count}
+
+
+
+
+| last, next| compatible_type and then comp_func

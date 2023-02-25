@@ -1,6 +1,10 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use crate::types::{arithmetic_function, Symbol, Value};
+use crate::{
+    errors::eval_err,
+    list::List,
+    types::{arithmetic_function, Symbol, Value, comp_function},
+};
 
 pub type RcEnv = Rc<RefCell<Env>>;
 
@@ -61,6 +65,83 @@ pub fn default_environment() -> RcEnv {
     env.add(
         Symbol::from("/"),
         Value::NativeFun(|_, args| arithmetic_function(args, |acc, e| acc / e)),
+    );
+
+    env.add(
+        Symbol::from("<"),
+        Value::NativeFun(|_, args| comp_function(args, |acc, e| acc < e)),
+    );
+
+    env.add(
+        Symbol::from("<="),
+        Value::NativeFun(|_, args| comp_function(args, |acc, e| acc <= e)),
+    );
+
+    env.add(
+        Symbol::from(">"),
+        Value::NativeFun(|_, args| comp_function(args, |acc, e| acc > e)),
+    );
+
+    env.add(
+        Symbol::from(">="),
+        Value::NativeFun(|_, args| comp_function(args, |acc, e| acc >= e)),
+    );
+
+    env.add(
+        Symbol::from("="),
+        Value::NativeFun(|_, args| comp_function(args, |acc, e| acc == e)),
+    );
+
+
+    env.add(
+        Symbol::from("list?"),
+        Value::NativeFun(|_, args| {
+            let first = args
+                .first()
+                .ok_or_else(|| eval_err("list? requires a list as argument, none given"))?;
+            match first.expect_list() {
+                Ok(_) => Ok(Value::True),
+                Err(_) => Ok(Value::False),
+            }
+        }),
+    );
+
+    env.add(
+        Symbol::from("empty?"),
+        Value::NativeFun(|_, args| {
+            let first = args
+                .first()
+                .ok_or_else(|| eval_err("empty? requires a list as argument, none given"))?;
+            first.expect_list().map(|list| list.empty().into())
+        }),
+    );
+
+    env.add(
+        Symbol::from("count"),
+        Value::NativeFun(|_, args| {
+            let first = args
+                .first()
+                .ok_or_else(|| eval_err("count requires a list as argument, none given"))?;
+            if matches!(first, Value::Nil) {
+                return Ok(Value::Integer(0));
+            } else {
+            first
+                .expect_list()
+                .map(|list| (list.iter().count() as i64).into())
+            }
+        }),
+    );
+
+    env.add(
+        Symbol::from("list"),
+        Value::NativeFun(|_, args| {
+            let mut arg_iter = args.into_iter();
+            let mut list = List::new();
+            while let Some(item) = arg_iter.next() {
+                list = list.prepend(item);
+            }
+            Ok(Value::List(list.reverse()))
+        }),
     );
     return Rc::new(RefCell::new(env));
 }

@@ -1,5 +1,5 @@
-use crate::list::*;
-use std::ops::*;
+use crate::{errors::eval_err, list::*};
+use std::{cmp::Ordering, ops::*};
 
 use crate::{env::RcEnv, errors::RuntimeError, errors::RuntimeResult};
 
@@ -46,14 +46,18 @@ impl Value {
     pub fn expect_list(&self) -> RuntimeResult<&List<Value>> {
         match self {
             Value::List(list) => Ok(list),
-            val => Err(RuntimeError::Evaluation(format!("Value '{val}' is not a list")))
+            val => Err(RuntimeError::Evaluation(format!(
+                "Value '{val}' is not a list"
+            ))),
         }
     }
 
     pub fn expect_symbol(&self) -> RuntimeResult<&Symbol> {
         match self {
             Value::Symbol(symbol) => Ok(symbol),
-            val => Err(RuntimeError::Evaluation(format!("Value '{val}' is not a symbol")))
+            val => Err(RuntimeError::Evaluation(format!(
+                "Value '{val}' is not a symbol"
+            ))),
         }
     }
 
@@ -61,7 +65,9 @@ impl Value {
         match self {
             Value::List(list) => Ok(list),
             Value::Array(array) => Ok(array),
-            val => Err(RuntimeError::Evaluation(format!("Value '{val}' is not a list")))
+            val => Err(RuntimeError::Evaluation(format!(
+                "Value '{val}' is not a list"
+            ))),
         }
     }
 }
@@ -124,9 +130,7 @@ impl Add<&Value> for &Value {
                 Ok(Value::from(this.to_string() + other))
             }
 
-            (a, b) => Err(RuntimeError::Evaluation(format!(
-                "Can't add {a} with {b}"
-            ))),
+            (a, b) => Err(RuntimeError::Evaluation(format!("Can't add {a} with {b}"))),
         }
     }
 }
@@ -202,6 +206,23 @@ impl Div<Value> for Value {
     }
 }
 
+impl PartialOrd<Value> for Value {
+    fn partial_cmp(&self, other: &Value) -> Option<std::cmp::Ordering> {
+        if self == other {
+            return Some(Ordering::Equal);
+        }
+
+        match (self, other) {
+            (Self::Integer(a), Value::Integer(b)) => Some(a.cmp(b)),
+            (Self::String(a), Value::String(b)) => a.partial_cmp(b),
+            (Self::Symbol(Symbol(a)), Value::Symbol(Symbol(b))) => a.partial_cmp(b),
+            (Self::True, Value::False) => Some(Ordering::Less),
+            (Self::False, Value::True) => Some(Ordering::Greater),
+            (_, _) => None,
+        }
+    }
+}
+
 impl From<IntType> for Value {
     fn from(i: IntType) -> Self {
         Value::Integer(i)
@@ -220,6 +241,16 @@ impl From<Symbol> for Value {
     }
 }
 
+impl From<bool> for Value {
+    fn from(i: bool) -> Self {
+        if i {
+            Value::True
+        } else {
+            Value::False
+        }
+    }
+}
+
 impl From<List<Value>> for Value {
     fn from(i: List<Value>) -> Self {
         Value::List(i)
@@ -230,10 +261,62 @@ pub fn arithmetic_function<F: FnMut(Value, Value) -> Result<Value, RuntimeError>
     args: Vec<Value>,
     function: F,
 ) -> RuntimeResult<Value> {
-    let first = args.first().ok_or_else(|| {
-        RuntimeError::Evaluation(String::from(
-            "arithmetic_function needs at least 2 arguments 0 provided",
-        ))
-    })?.clone();
+    let first = args
+        .first()
+        .ok_or_else(|| {
+            RuntimeError::Evaluation(String::from(
+                "arithmetic_function needs at least 2 arguments 0 provided",
+            ))
+        })?
+        .clone();
     args.into_iter().skip(1).try_fold(first, function)
+}
+
+pub fn compatible_types(first: &Value, next: &Value) -> RuntimeResult<()> {
+    if first == next {
+        return Ok(());
+    }
+
+    match (first, next) {
+        (Value::Integer(_), Value::Integer(_)) => Ok(()),
+        (Value::String(_), Value::String(_)) => Ok(()),
+        (Value::True, Value::False) => Ok(()),
+        (Value::False, Value::True) => Ok(()),
+        (Value::Symbol(_), Value::Symbol(_)) => Ok(()),
+        (a, b) => Err(eval_err(&format!(
+            "Type '{a}' and '{b}' are not compatible"
+        ))),
+    }
+}
+
+pub fn comp_function<F: FnMut(&Value, &Value) -> bool>(
+    args: Vec<Value>,
+    mut function: F,
+) -> RuntimeResult<Value> {
+    let mut last = args
+        .first()
+        .ok_or_else(|| {
+            RuntimeError::Evaluation(String::from(
+                "comp_function needs at least 2 arguments 0 provided",
+            ))
+        })?
+        .clone();
+    let mut rest =  args.into_iter().skip(1);
+
+    while let Some(next) = rest.next() {
+        let types_match = compatible_types(&last, &next);
+        if types_match.is_err() {
+            return Err(eval_err(&format!(
+                "Comparsion function failed,  {}",
+                types_match.err().unwrap()
+            )));
+        }
+
+        if !function(&last, &next) {
+            return Ok(Value::False);
+        }
+
+        last = next;
+    }
+    Ok(Value::True)
 }
