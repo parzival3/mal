@@ -23,7 +23,30 @@ fn eval_list(env: &RcEnv, list: List<Value>) -> RuntimeResult<Value> {
     match first {
         Value::Symbol(symb) if symb == Symbol::from("def!") => eval_definition(env, list),
         Value::Symbol(symb) if symb == Symbol::from("let*") => eval_let(env, list),
+        Value::Symbol(symb) if symb == Symbol::from("if") => eval_if(env, list),
         _ => eval_function(env, list),
+    }
+}
+
+fn eval_if(env: &RcEnv, list: List<Value>) -> Result<Value, RuntimeError> {
+    let condition = list
+        .car_n(
+            1,
+            eval_err("if expects at least a condition and a body; none given"),
+        )?
+        .clone();
+    let body = list.car_n(2, eval_err("if doesn't have a body"))?.clone();
+
+    let else_body = list
+        .iter()
+        .skip(3)
+        .next()
+        .unwrap_or_else(|| &Value::Nil)
+        .clone();
+
+    match eval(env, condition)? {
+        Value::Nil | Value::False => eval(env, else_body),
+        _ => eval(env, body),
     }
 }
 
