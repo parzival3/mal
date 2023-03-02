@@ -149,8 +149,9 @@ fn eval_function(env: &RcEnv, list: List<Value>) -> RuntimeResult<Value> {
 fn call_function(env: &RcEnv, func: Value, args: Vec<Value>) -> RuntimeResult<Value> {
     if let Value::NativeFun(native_func) = func {
         return native_func(env.clone(), args);
-    } else if let Value::LispClosure(_, closure, env) = func {
-        return call_closure(env, closure, args);
+    } else if let Value::LispClosure(_, closure, lisp_env) = func {
+        // TODO: is passing the lisp_env enough? probalby we need to prevent shadowing?
+        return call_closure(lisp_env, closure, args);
     }
     Err(RuntimeError::Evaluation(format!(
         "Symbol {func} is not a function",
