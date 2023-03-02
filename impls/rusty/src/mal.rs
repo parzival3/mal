@@ -30,7 +30,6 @@ fn eval_list(env: &RcEnv, list: List<Value>) -> RuntimeResult<Value> {
     }
 }
 
-
 fn eval_do(env: &RcEnv, list: List<Value>) -> Result<Value, RuntimeError> {
     let expressions = list.into_vec();
 
@@ -44,18 +43,18 @@ fn eval_do(env: &RcEnv, list: List<Value>) -> Result<Value, RuntimeError> {
     Ok(res)
 }
 
-
 fn define_closure(env: &RcEnv, list: List<Value>) -> Result<Value, RuntimeError> {
     // this is basically a lambda
     // This returns a Mal or
     let args = list.car_n(1, eval_err("closure missing list of arguments"))?;
     let params = args.expect_list()?.into_vec();
     let body = list.car_n(2, eval_err("closure needs a body"))?;
-    Ok(Value::LispClosure(
-        Symbol::from("closure"),
-        LispClosure::new(params, body.clone()),
+    Ok(Value::LispClosure(LispClosure::new(
+        None,
         env.clone(),
-    ))
+        params,
+        body.clone(),
+    )))
 }
 
 fn eval_if(env: &RcEnv, list: List<Value>) -> Result<Value, RuntimeError> {
@@ -165,17 +164,17 @@ fn eval_function(env: &RcEnv, list: List<Value>) -> RuntimeResult<Value> {
 fn call_function(env: &RcEnv, func: Value, args: Vec<Value>) -> RuntimeResult<Value> {
     if let Value::NativeFun(native_func) = func {
         return native_func(env.clone(), args);
-    } else if let Value::LispClosure(_, closure, lisp_env) = func {
+    } else if let Value::LispClosure(closure) = func {
         // TODO: is passing the lisp_env enough? probalby we need to prevent shadowing?
-        return call_closure(lisp_env, closure, args);
+        return call_closure(env.clone(), closure, args);
     }
     Err(RuntimeError::Evaluation(format!(
         "Symbol {func} is not a function",
     )))
 }
 
-fn call_closure(env: RcEnv, closure: LispClosure, args: Vec<Value>) -> Result<Value, RuntimeError> {
-    let new_env = new_env_bindings(env, closure.params().clone(), args)?;
+fn call_closure(_env: RcEnv, closure: LispClosure, args: Vec<Value>) -> Result<Value, RuntimeError> {
+    let new_env = new_env_bindings(closure.env().clone(), closure.params().clone(), args)?;
     eval(&new_env, closure.body().clone())
 }
 

@@ -9,23 +9,32 @@ pub type IntType = i64;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct LispClosure {
+    name: Option<Symbol>,
     body: Box<Value>,
     params: Vec<Value>,
+    env: RcEnv
 }
 
 impl LispClosure {
-    pub fn new(params: Vec<Value>, body: Value) -> Self {
+    pub fn new(name: Option<Symbol>, env: RcEnv, params: Vec<Value>, body: Value) -> Self {
         Self {
+            name,
+            env,
             params,
-            body: Box::new(body)
+            body: Box::new(body),
         }
     }
 
     pub fn params(&self) -> &Vec<Value> {
         &self.params
     }
-        pub fn body(&self) -> &Value {
+
+    pub fn body(&self) -> &Value {
         &self.body
+    }
+
+    pub fn env(&self) -> &RcEnv {
+        &self.env
     }
 
 }
@@ -63,7 +72,7 @@ pub enum Value {
     List(List<Value>),
     Map(List<Value>),
     NativeFun(NativeFun),
-    LispClosure(Symbol, LispClosure, RcEnv),
+    LispClosure(LispClosure),
 }
 
 impl Value {
@@ -116,7 +125,7 @@ impl std::fmt::Display for Value {
             Value::List(list) => write!(f, "{}", print_seq(list, "(", ")")),
             Value::Map(map) => write!(f, "{}", print_seq(map, "{", "}")),
             Value::NativeFun(func) => write!(f, "<nativefunc> {:?}", func),
-            Value::LispClosure(symb, func, _) => write!(f, "<{symb}:: {:?}>", func),
+            Value::LispClosure(LispClosure{name, env: _, params: _, body}) => write!(f, "<{:?}:: {:?}>", name, body),
         }
     }
 }
