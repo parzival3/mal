@@ -7,6 +7,29 @@ pub type NativeFun = fn(env: RcEnv, args: Vec<Value>) -> Result<Value, RuntimeEr
 
 pub type IntType = i64;
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct LispClosure {
+    body: Box<Value>,
+    params: Vec<Value>,
+}
+
+impl LispClosure {
+    pub fn new(params: Vec<Value>, body: Value) -> Self {
+        Self {
+            params,
+            body: Box::new(body)
+        }
+    }
+
+    pub fn params(&self) -> &Vec<Value> {
+        &self.params
+    }
+        pub fn body(&self) -> &Value {
+        &self.body
+    }
+
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Symbol(pub String);
 impl From<&str> for Symbol {
@@ -40,6 +63,7 @@ pub enum Value {
     List(List<Value>),
     Map(List<Value>),
     NativeFun(NativeFun),
+    LispClosure(Symbol, LispClosure, RcEnv),
 }
 
 impl Value {
@@ -92,6 +116,7 @@ impl std::fmt::Display for Value {
             Value::List(list) => write!(f, "{}", print_seq(list, "(", ")")),
             Value::Map(map) => write!(f, "{}", print_seq(map, "{", "}")),
             Value::NativeFun(func) => write!(f, "<nativefunc> {:?}", func),
+            Value::LispClosure(symb, func, _) => write!(f, "<{symb}:: {:?}>", func),
         }
     }
 }
@@ -109,7 +134,7 @@ impl FromIterator<Value> for List<Value> {
             list = list.prepend(val);
         }
 
-        return list.reverse();
+        list.reverse()
     }
 }
 
@@ -283,6 +308,12 @@ pub fn compatible_types(first: &Value, next: &Value) -> RuntimeResult<()> {
         (Value::True, Value::False) => Ok(()),
         (Value::False, Value::True) => Ok(()),
         (Value::Symbol(_), Value::Symbol(_)) => Ok(()),
+        (_, Value::Nil) => Ok(()),
+        (Value::Nil, _) => Ok(()),
+        (Value::List(_), Value::List(_)) => Ok(()),
+        (Value::Map(_), Value::Map(_)) => Ok(()),
+        (Value::Array(_), Value::Array(_)) => Ok(()),
+        (Value::Keyword(_), Value::Keyword(_)) => Ok(()),
         (a, b) => Err(eval_err(&format!(
             "Type '{a}' and '{b}' are not compatible"
         ))),
@@ -301,9 +332,9 @@ pub fn comp_function<F: FnMut(&Value, &Value) -> bool>(
             ))
         })?
         .clone();
-    let mut rest =  args.into_iter().skip(1);
+    let rest = args.into_iter().skip(1);
 
-    while let Some(next) = rest.next() {
+    for next in rest {
         let types_match = compatible_types(&last, &next);
         if types_match.is_err() {
             return Err(eval_err(&format!(

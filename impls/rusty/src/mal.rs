@@ -24,8 +24,22 @@ fn eval_list(env: &RcEnv, list: List<Value>) -> RuntimeResult<Value> {
         Value::Symbol(symb) if symb == Symbol::from("def!") => eval_definition(env, list),
         Value::Symbol(symb) if symb == Symbol::from("let*") => eval_let(env, list),
         Value::Symbol(symb) if symb == Symbol::from("if") => eval_if(env, list),
+        Value::Symbol(symb) if symb == Symbol::from("fn*") => define_closure(env, list),
         _ => eval_function(env, list),
     }
+}
+
+fn define_closure(env: &RcEnv, list: List<Value>) -> Result<Value, RuntimeError> {
+    // this is basically a lambda
+    // This returns a Mal or
+    let args = list.car_n(1, eval_err("closure missing list of arguments"))?;
+    let params = args.expect_list()?.into_vec();
+    let body = list.car_n(2, eval_err("closure needs a body"))?;
+    Ok(Value::LispClosure(
+        Symbol::from("closure"),
+        LispClosure::new(params, body.clone()),
+        env.clone(),
+    ))
 }
 
 fn eval_if(env: &RcEnv, list: List<Value>) -> Result<Value, RuntimeError> {
@@ -37,12 +51,7 @@ fn eval_if(env: &RcEnv, list: List<Value>) -> Result<Value, RuntimeError> {
         .clone();
     let body = list.car_n(2, eval_err("if doesn't have a body"))?.clone();
 
-    let else_body = list
-        .iter()
-        .skip(3)
-        .next()
-        .unwrap_or_else(|| &Value::Nil)
-        .clone();
+    let else_body = list.iter().nth(3).unwrap_or_else(|| &Value::Nil).clone();
 
     match eval(env, condition)? {
         Value::Nil | Value::False => eval(env, else_body),
@@ -51,7 +60,8 @@ fn eval_if(env: &RcEnv, list: List<Value>) -> Result<Value, RuntimeError> {
 }
 
 fn add_to_env(env: &RcEnv, symbol: Symbol, value: Value) -> RuntimeResult<()> {
-    Ok(env.try_borrow_mut()?.add(symbol, value))
+    env.try_borrow_mut()?.add(symbol, value);
+    Ok(())
 }
 
 fn eval_let(env: &RcEnv, list: List<Value>) -> RuntimeResult<Value> {
@@ -104,18 +114,18 @@ fn eval_definition(env: &RcEnv, list: List<Value>) -> RuntimeResult<Value> {
     let first = list
         .car_n(
             1,
-            RuntimeError::Evaluation(format!(
-                "def! expects at least a definition and a body; none given"
+            RuntimeError::Evaluation(String::from(
+                "def! expects at least a definition and a body; none given",
             )),
         )?
         .clone();
 
     if let Value::Symbol(definition) = first {
-        let body = list.iter().skip(2).next().ok_or_else(|| RuntimeError::Evaluation(format!("def! expects at least a definition and a body, definition is {definition} body is empty")))?;
+        let body = list.iter().nth(2).ok_or_else(|| RuntimeError::Evaluation(format!("def! expects at least a definition and a body, definition is {definition} body is empty")))?;
         let evaluated = eval(env, body.clone())?;
         env.try_borrow_mut()?
             .add(definition.clone(), evaluated.clone());
-        return Ok(evaluated);
+        Ok(evaluated)
     } else {
         return Err(RuntimeError::Evaluation(format!(
             "First element of def! must be a symbol instead is {first}"
@@ -139,17 +149,23 @@ fn eval_function(env: &RcEnv, list: List<Value>) -> RuntimeResult<Value> {
 fn call_function(env: &RcEnv, func: Value, args: Vec<Value>) -> RuntimeResult<Value> {
     if let Value::NativeFun(native_func) = func {
         return native_func(env.clone(), args);
+    } else if let Value::LispClosure(_, closure, env) = func {
+        return call_closure(env, closure, args);
     }
     Err(RuntimeError::Evaluation(format!(
         "Symbol {func} is not a function",
     )))
 }
 
+fn call_closure(env: RcEnv, closure: LispClosure, args: Vec<Value>) -> Result<Value, RuntimeError> {
+    let new_env = new_env_bindings(env, closure.params().clone(), args)?;
+    eval(&new_env, closure.body().clone())
+}
+
 fn get_symbol(env: &RcEnv, val: Symbol) -> RuntimeResult<Value> {
-    Ok(env
-        .try_borrow()?
+    env.try_borrow()?
         .get(&val)
-        .ok_or_else(|| RuntimeError::ValueNotFound(format!("Symbol '{val}' not found")))?)
+        .ok_or_else(|| RuntimeError::ValueNotFound(format!("Symbol '{val}' not found")))
 }
 
 /// Eval each of the element of a list separatedly and return a vector of values
@@ -158,7 +174,6 @@ fn eval_list_args(env: &RcEnv, args: List<Value>) -> Result<Vec<Value>, RuntimeE
     args.iter()
         .map(|val| eval_ast(env, val.clone()))
         .collect::<Result<Vec<Value>, RuntimeError>>()
-        .to_owned()
 }
 
 /// Eval the entire list and return a new list wich is the result of the evaluation
@@ -195,7 +210,7 @@ pub fn print(ast: RuntimeResult<Value>) {
 
 pub fn rep(env: &RcEnv, input_string: &str) {
     match read(input_string) {
-        Ok(parsed_input) => print(eval(&env, parsed_input)),
+        Ok(parsed_input) => print(eval(env, parsed_input)),
         Err(e) => println!("(EOF|end of input|unbalanced): {e}"),
     }
 }

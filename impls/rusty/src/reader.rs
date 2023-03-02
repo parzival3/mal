@@ -132,19 +132,19 @@ impl<T: ReaderTrait> Reader<T> {
             Tokens::TildeAt => self.read_quote(Value::SpliceUnquote),
             Tokens::LeftParen => self.read_sequence_until(
                 Tokens::RightParen,
-                |child| Value::List(child),
+                Value::List,
                 TokenizerError::UnbalancedList,
             ),
             Tokens::RightParen => Err(TokenizerError::UnbalancedList),
             Tokens::LeftSquareBraket => self.read_sequence_until(
                 Tokens::RightSquareBraket,
-                |child| Value::Array(child),
+                Value::Array,
                 TokenizerError::UnbalancedArray,
             ),
             Tokens::RightSquareBraket => Err(TokenizerError::UnbalancedArray),
             Tokens::LeftBraket => self.read_sequence_until(
                 Tokens::RightBraket,
-                |child| Value::Map(child),
+                Value::Map,
                 TokenizerError::UnbalancedMap,
             ),
             Tokens::RightBraket => Err(TokenizerError::UnbalancedMap),
@@ -185,17 +185,15 @@ impl<T: ReaderTrait> Reader<T> {
                             is_last_quote_escaped: false,
                         }
                     }
+                } else if ch == '\\' {
+                    StringChecks {
+                        missing_escape: true,
+                        is_last_quote_escaped: false,
+                    }
                 } else {
-                    if ch == '\\' {
-                        StringChecks {
-                            missing_escape: true,
-                            is_last_quote_escaped: false,
-                        }
-                    } else {
-                        StringChecks {
-                            missing_escape: false,
-                            is_last_quote_escaped: false,
-                        }
+                    StringChecks {
+                        missing_escape: false,
+                        is_last_quote_escaped: false,
                     }
                 }
             },
@@ -207,7 +205,7 @@ impl<T: ReaderTrait> Reader<T> {
                 content
             )))
         } else {
-            return Ok(Value::String(content));
+            Ok(Value::String(content))
         }
     }
 
@@ -293,7 +291,7 @@ impl<T: ReaderTrait> Reader<T> {
             return self.read_quote(Value::Unquote);
         }
 
-        return Ok(Value::Symbol(Symbol(content)));
+        Ok(Value::Symbol(Symbol(content)))
     }
 }
 

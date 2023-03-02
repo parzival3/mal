@@ -13,6 +13,12 @@ struct Node<T> {
     next: Link<T>,
 }
 
+impl<T: Clone> Default for List<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<T: Clone> List<T> {
     pub const NIL: Self = List { head: None };
 
@@ -44,16 +50,15 @@ impl<T: Clone> List<T> {
     }
 
     pub fn reverse(&self) -> List<T> {
-        let mut iter = self.iter();
         let mut list = List::new();
-        while let Some(val) = iter.next() {
+        for val in self.iter() {
             list = list.prepend((*val).clone());
         }
-        return list;
+        list
     }
 
     pub fn car_n<E: Clone>(&self, index: usize, error: E) -> Result<&T, E> {
-        self.iter().skip(index).next().ok_or_else(|| error)
+        self.iter().nth(index).ok_or(error)
     }
 
     pub fn car<E: Clone>(&self, error: E) -> Result<&T, E> {
@@ -64,6 +69,14 @@ impl<T: Clone> List<T> {
         Iter {
             next: self.head.as_deref(),
         }
+    }
+
+    pub fn into_vec(&self) -> Vec<T> {
+        let mut vec_val = Vec::new();
+        for val in self.iter() {
+            vec_val.push(val.clone());
+        }
+        vec_val
     }
 }
 
