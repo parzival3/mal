@@ -25,9 +25,25 @@ fn eval_list(env: &RcEnv, list: List<Value>) -> RuntimeResult<Value> {
         Value::Symbol(symb) if symb == Symbol::from("let*") => eval_let(env, list),
         Value::Symbol(symb) if symb == Symbol::from("if") => eval_if(env, list),
         Value::Symbol(symb) if symb == Symbol::from("fn*") => define_closure(env, list),
+        Value::Symbol(symb) if symb == Symbol::from("do") => eval_do(env, list),
         _ => eval_function(env, list),
     }
 }
+
+
+fn eval_do(env: &RcEnv, list: List<Value>) -> Result<Value, RuntimeError> {
+    let expressions = list.into_vec();
+
+    let iter = expressions.iter().skip(1);
+
+    let mut res = Value::Nil;
+    for expr in iter {
+        res = eval(env, expr.clone())?;
+    }
+
+    Ok(res)
+}
+
 
 fn define_closure(env: &RcEnv, list: List<Value>) -> Result<Value, RuntimeError> {
     // this is basically a lambda
